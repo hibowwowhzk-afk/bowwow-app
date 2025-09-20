@@ -8,6 +8,8 @@ export type PostRow = {
     message: string;
     created_at: string; // DB の型に合わせて string or Date
     display_name: string;
+    x_username?: string | null;
+    insta_username?: string | null;
     image_url?: string | null;
     image_order?: number | null;
 };
@@ -30,6 +32,8 @@ export class PostRepository {
                 p.message,
                 p.created_at,
                 u.display_name,
+                u.x_username,
+                u.insta_username,
                 i.image_url,
                 i.order AS image_order
             FROM posts p

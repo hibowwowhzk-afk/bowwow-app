@@ -5,6 +5,7 @@ import { Swiper, SwiperSlide } from 'swiper/react';
 import { Pagination } from 'swiper/modules';
 import 'swiper/css';
 import 'swiper/css/pagination';
+import { Twitter, Instagram } from 'lucide-react';
 
 type Post = {
     id: number;
@@ -13,6 +14,8 @@ type Post = {
     created_at: string;
     user: {
         display_name: string;
+        x_username?: string;
+        insta_username?: string;
     };
     images?: { url: string; order: number }[];
 };
@@ -53,9 +56,10 @@ export const ImmediateDrinks: React.FC = () => {
                     marginBottom: '2rem',
                     borderRadius: 8,
                     overflow: 'hidden',
-                    position: 'relative',
+                    border: '1px solid #ddd',
                 }}
                 >
+                {/* 画像部分 */}
                 {hasImages ? (
                     <Swiper
                     modules={[Pagination]}
@@ -98,26 +102,41 @@ export const ImmediateDrinks: React.FC = () => {
                     />
                 )}
 
-                {/* オーバーレイとテキスト */}
-                <div
+                {/* 情報カード */}
+                <div style={{ padding: '1rem', background: '#fff' }}>
+                    <strong style={{ fontSize: '1.2rem' }}>
+                    {post.user.display_name}
+                    </strong>
+                    <p
                     style={{
-                    position: 'absolute',
-                    bottom: '1rem',
-                    left: '1rem',
-                    zIndex: 1,
-                    color: '#fff',
-                    background: 'rgba(0, 0, 0, 0.5)',
-                    padding: '0.5rem 1rem',
-                    borderRadius: 4,
+                        margin: '0.5rem 0',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 4,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
                     }}
-                >
-                    <strong style={{ fontSize: '1.2rem' }}>{post.user.display_name}</strong>
-                    <br />
-                    <span>{post.message}</span>
-                    <br />
-                    <small style={{ fontSize: '0.75rem', opacity: 0.8 }}>
+                    >
+                        {post.message}
+                    </p>
+                    <small style={{ color: '#666' }}>
                     投稿日時: {new Date(post.created_at).toLocaleString()}
                     </small>
+                {/* SNSアイコン表示 */}
+                <div
+                    style={{
+                        marginTop: '0.5rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                    }}
+                >
+                    <span style={{ fontSize: '0.9rem', color: '#333', fontWeight: 500 }}>
+                        連絡SNS:
+                    </span>
+                    {post.user.x_username && <Twitter size={20} />}
+                    {post.user.insta_username && <Instagram size={20} />}
+                </div>
                 </div>
                 </li>
             );
@@ -125,4 +144,4 @@ export const ImmediateDrinks: React.FC = () => {
         </ul>
         </section>
     );
-    };
+};
