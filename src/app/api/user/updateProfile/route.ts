@@ -1,7 +1,7 @@
 // src/app/api/user/updateProfile/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { UserRepository } from '@/repositories/userRepository';
+import { UserRepository } from '@/repositories/UserRepository';
 import { verifySessionFromRequest } from '@/lib/firebase-session';
 
 export async function POST(req: NextRequest) {

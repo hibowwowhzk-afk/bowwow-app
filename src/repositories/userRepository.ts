@@ -18,7 +18,6 @@ interface UserWithProfileRow extends RowDataPacket {
     message: string | null;
 }
 
-
 export class UserRepository {
 
     /**

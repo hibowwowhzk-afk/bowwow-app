@@ -1,7 +1,7 @@
 // src/app/api/request/insertRequest/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { UserRepository } from '@/repositories/userRepository';
+import { UserRepository } from '@/repositories/UserRepository';
 import { RequestRepository } from "@/repositories/RequestRepository";
 import { verifySessionFromRequest } from '@/lib/firebase-session';
 

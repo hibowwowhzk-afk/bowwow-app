@@ -1,6 +1,5 @@
 // src/repositories/postRepository.ts
 import db from '@/lib/db';
-import { RowDataPacket } from 'mysql2';
 
 export type PostRow = {
     post_id: number;

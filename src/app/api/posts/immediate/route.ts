@@ -2,8 +2,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifySessionFromRequest } from '@/lib/firebase-session';
-import { PostRepository, type PostRow } from '@/repositories/postRepository';
-import { UserRepository } from '@/repositories/userRepository';
+import { PostRepository, type PostRow } from '@/repositories/PostRepository';
+import { UserRepository } from '@/repositories/UserRepository';
 import { shuffle } from 'lodash';
 
 export async function GET(req: NextRequest) {
@@ -15,14 +15,14 @@ export async function GET(req: NextRequest) {
         }
         const uid = authResult.uid;
 
-        // 自分の性別を取得
-        const userGender = await UserRepository.findUserWithProfileByUID(uid);
-        if (!userGender) {
+        // 自身のプロフィール取得
+        const user = await UserRepository.findUserWithProfileByUID(uid);
+        if (!user) {
             throw new Error('ユーザー情報が見つかりません');
         }
 
         // 今すぐ飲みたい「active」投稿を取得
-        let rows = await PostRepository.findImmediateActivePosts(userGender.gender, uid) as PostRow[];
+        let rows = await PostRepository.findImmediateActivePosts(user.gender, uid) as PostRow[];
 
         // lodash で投稿をランダムに並び替える
         rows = shuffle(rows);
