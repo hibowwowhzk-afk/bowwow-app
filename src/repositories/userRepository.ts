@@ -9,13 +9,14 @@ import { RowDataPacket } from 'mysql2';
  */
 interface UserWithProfileRow extends RowDataPacket {
     user_id: number;
-    uid: string;
     display_name: string;
     gender: number;
     age: number;
     residence: string | null;
     occupation: string | null;
     message: string | null;
+    twitter: string | null;
+    instagram: string | null;
 }
 
 export class UserRepository {
@@ -61,6 +62,14 @@ export class UserRepository {
         );
 
         return rows[0] ?? null;
+    }
+
+    static async findProfileByUserId(userId: string) {
+        const [rows] = await db.execute(
+          'SELECT * FROM user_profile WHERE user_id = ? LIMIT 1',
+          [userId]
+        );
+        return (rows as any[])[0] ?? null;
     }
 
     /**

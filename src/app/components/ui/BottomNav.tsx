@@ -16,7 +16,7 @@ export default function BottomNav() {
             <NavItem href={getNavHref("/home")} label="ホーム" active={pathname === '/home'} />
             <NavItem href={getNavHref("/matchings")} label="マッチング" active={pathname === '/matchings'} />
             <NavItem href={getNavHref("/requests")} label="リクエスト" active={pathname === '/requests'} />
-            <NavItem href={getNavHref("/profile")} label="プロフィール" active={pathname === '/profile'} />
+            <NavItem href={getNavHref("/register/profile")} label="プロフィール" active={pathname === '/profile'} />
         </nav>
     )
 }

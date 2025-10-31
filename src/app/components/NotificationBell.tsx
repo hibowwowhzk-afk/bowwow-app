@@ -46,7 +46,7 @@ export default function NotificationBell() {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ type }), // type: 'requests' or 'accepted'
+                body: JSON.stringify({ type }),
             });
         } catch (e) {
             console.error('既読処理失敗:', e);
@@ -55,11 +55,16 @@ export default function NotificationBell() {
 
     const handleClick = async (type: 'requests' | 'accepted') => {
         await markAsRead(type);
+
         if (type === 'requests') {
-            router.push('/requests');
+            const ids = pendingRequests.map((r) => r.request_id).join(',');
+            router.push(`/auth/requests?highlight=${ids}`);
         } else {
-            router.push('/accepted');
+            const ids = acceptedRequests.map((r) => r.request_id).join(',');
+            router.push(`/auth/matchings?highlight=${ids}`);
         }
+
+        await fetchNotifications();
     };
 
     const pendingCount = pendingRequests.length;
@@ -92,7 +97,7 @@ export default function NotificationBell() {
                         )}
                         {pendingCount > 0 && (
                             <li
-                                className="p-2 rounded cursor-pointer bg-blue-50"
+                                className="p-2 rounded cursor-pointer bg-blue-50 hover:bg-blue-100 transition"
                                 onClick={() => handleClick('requests')}
                             >
                                 {renderMessage('pending', pendingCount)}
@@ -100,7 +105,7 @@ export default function NotificationBell() {
                         )}
                         {acceptedCount > 0 && (
                             <li
-                                className="p-2 rounded cursor-pointer bg-blue-50"
+                                className="p-2 rounded cursor-pointer bg-blue-50 hover:bg-blue-100 transition"
                                 onClick={() => handleClick('accepted')}
                             >
                                 {renderMessage('accepted', acceptedCount)}

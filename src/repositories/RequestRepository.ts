@@ -1,5 +1,6 @@
 // src/repositories/RequestRepository.ts
 import db from "@/lib/db";
+import { RowDataPacket } from 'mysql2/promise';
 
 export class RequestRepository {
     static async insertRequest(data: {
@@ -53,37 +54,6 @@ export class RequestRepository {
             throw new Error('データの取得に失敗しました');
         }
     }
-
-static async getMatchedRequestsByUserId(userId: number) {
-    try {
-        const [rows] = await db.execute(`
-            SELECT
-                r.id AS request_id,
-                r.message AS request_message,
-                r.created_at AS request_created_at,
-                u.display_name AS user_display_name,
-                pi.image_url AS user_profile_image
-            FROM requests r
-            JOIN posts p ON r.post_id = p.id
-            JOIN user_profile u ON
-                -- 相手のプロフィールを表示するための結合条件
-                CASE
-                    WHEN r.to_user_id = ? THEN r.from_user_id
-                    ELSE r.to_user_id
-                END = u.user_id
-            LEFT JOIN user_profile_image pi ON u.user_id = pi.user_id AND pi.order = 1
-            WHERE (r.to_user_id = ? OR r.from_user_id = ?)
-                AND p.status = 'active'
-                AND r.status = 'accepted'
-            ORDER BY r.created_at DESC
-        `, [userId, userId, userId]);
-
-        return rows;
-    } catch (error) {
-        console.error('Error fetching requests:', error);
-        throw new Error('データの取得に失敗しました');
-    }
-}
 
     // 未読の「受信したリクエスト」（pending状態で、lastCheckedより後のcreated_at）
     static async getUnreadIncomingRequests(userId: number, lastChecked: Date) {
@@ -139,5 +109,24 @@ static async getMatchedRequestsByUserId(userId: number) {
             console.error('Error fetching unread accepted requests:', error);
             throw new Error('データの取得に失敗しました');
         }
+    }
+
+    static async getRequestById(requestId: number): Promise<any> {
+        const sql = `SELECT * FROM requests WHERE id = ?`;
+        const [rows] = await db.execute(sql, [requestId]);
+        if (Array.isArray(rows) && rows.length > 0) {
+            return rows[0];
+        }
+        throw new Error('リクエストが見つかりません');
+    }
+
+    static async updateRequestStatus(requestId: number, status: 'accepted' | 'rejected') {
+        const sql = `
+            UPDATE requests
+            SET status = ?, updated_at = NOW()
+            WHERE id = ?
+        `;
+        const [result] = await db.execute(sql, [status, requestId]);
+        return result;
     }
 }

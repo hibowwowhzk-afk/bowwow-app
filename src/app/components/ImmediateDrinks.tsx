@@ -12,6 +12,7 @@ type Post = {
     created_at: string;
     user: {
         display_name: string;
+        age: number;
         x_username?: string;
         insta_username?: string;
     };

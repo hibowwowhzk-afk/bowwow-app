@@ -42,10 +42,10 @@ export default function Header() {
                 onClick={() => router.push('/auth/dashboard')}
                 title="ダッシュボードへ"
             >
-                ダッシュボード
+                今すぐ合流
             </div>
             <div className="flex items-center space-x-3">
-                <NotificationBell /> {/* ← 通知ベル追加 */}
+                <NotificationBell />
                 <span className="text-sm truncate max-w-[100px]">
                     {profile?.display_name || 'ゲスト'}
                 </span>

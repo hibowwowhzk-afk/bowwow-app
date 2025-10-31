@@ -32,14 +32,11 @@ export class UserActivityRepository {
     /**
      * 通知確認日時を現在の時間に更新（通知既読処理）
      */
-    static async updateNotificationCheckedAt(userId: number, date: Date) {
-        await db.query(
-            `
-            UPDATE user_activity
-            SET last_notification_checked_at = ?, updated_at = NOW()
-            WHERE user_id = ?
-            `,
-            [date, userId]
+    static async markAsRead(userId: number, type: 'requests' | 'accepted'): Promise<void> {
+        const field = type === 'requests' ? 'last_checked_requests_at' : 'last_checked_accepted_at';
+        await db.execute(
+            `UPDATE user_activity SET ${field} = NOW() WHERE user_id = ?`,
+            [userId]
         );
     }
 

@@ -14,7 +14,7 @@ export const JoinRequestButton: React.FC<Props> = ({ toUserId, postId }) => {
     const [message, setMessage] = React.useState("");
 
     const handleSend = async () => {
-        const res = await fetch("/api/request/insertRequest", {
+        const res = await fetch("/api/requests/insertRequest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
