@@ -1,16 +1,20 @@
 // src/app/api/matchings/[matchId]/getConversationFromMatching/route.ts
-import { NextResponse } from 'next/server';
-import { verifySessionFromRequest } from '@/lib/firebase-session';
-import { UserRepository } from '@/repositories/UserRepository';
-import { MatchesRepository } from '@/repositories/MatchesRepository';
-import { RequestRepository } from '@/repositories/RequestRepository';
-import { PostRepository } from '@/repositories/PostRepository';
-import { SnsNotificationsRepository } from '@/repositories/SnsNotificationsRepository';
+import { NextResponse } from "next/server";
+import { verifySessionFromRequest } from "@/lib/firebase-session";
+import { UserRepository } from "@/repositories/UserRepository";
+import { MatchesRepository } from "@/repositories/MatchesRepository";
+import { RequestRepository } from "@/repositories/RequestRepository";
+import { PostRepository } from "@/repositories/PostRepository";
+import { SnsNotificationsRepository } from "@/repositories/SnsNotificationsRepository";
 
-export async function GET(req: Request, { params }: { params: { matchId: string } }) {
+type Params = { matchId: string };
+
+export async function GET(req: Request, context: { params: Params }) {
     try {
+        const { matchId } = context.params;
+
         const authResult = await verifySessionFromRequest();
-        if ('error' in authResult) {
+        if ("error" in authResult) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status });
         }
         const uid = authResult.uid;
@@ -18,24 +22,21 @@ export async function GET(req: Request, { params }: { params: { matchId: string 
         // 自分のプロフィール取得
         const user = await UserRepository.findUserWithProfileByUID(uid);
         if (!user) {
-            return NextResponse.json({ error: 'ユーザー情報が見つかりません' }, { status: 404 });
+            return NextResponse.json({ error: "ユーザー情報が見つかりません" }, { status: 404 });
         }
         const selfUserId = user.user_id;
 
-        const matchId = Number(params.matchId);
+        const matchIdNum = Number(matchId);
         // ---- 承諾メッセージ（マッチ情報） ----
-        const matchMessageInfo = await MatchesRepository.getMatchDetail(matchId);
+        const matchMessageInfo = await MatchesRepository.getMatchDetail(matchIdNum);
         if (!matchMessageInfo) {
-            return NextResponse.json(
-                { error: 'Matching not found' },
-                { status: 404 }
-            );
+            return NextResponse.json({ error: "Matching not found" }, { status: 404 });
         }
         const requestId = matchMessageInfo.request_id;
         const postId = matchMessageInfo.post_id;
 
         // ---- DM送信通知 ----
-        const dmMessageInfo = await SnsNotificationsRepository.getByMatchId(matchId);
+        const dmMessageInfo = await SnsNotificationsRepository.getByMatchId(matchIdNum);
 
         // ---- リクエストメッセージ ----
         let requestMessageInfo = null;
@@ -50,10 +51,7 @@ export async function GET(req: Request, { params }: { params: { matchId: string 
         }
 
         if (!postInfo) {
-            return NextResponse.json(
-                { error: 'Post not found' },
-                { status: 404 }
-            );
+            return NextResponse.json({ error: "Post not found" }, { status: 404 });
         }
 
         return NextResponse.json({
@@ -81,9 +79,8 @@ export async function GET(req: Request, { params }: { params: { matchId: string 
             dm_from_user_id: dmMessageInfo?.from_user_id ?? null,
             dm_sent_at: dmMessageInfo?.sent_at ?? null,
         });
-
     } catch (err) {
         console.error(err);
-        return NextResponse.json({ error: 'Server error' }, { status: 500 });
+        return NextResponse.json({ error: "Server error" }, { status: 500 });
     }
 }
