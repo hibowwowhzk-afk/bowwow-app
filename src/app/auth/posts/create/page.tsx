@@ -1,0 +1,170 @@
+'use client';
+
+import { useState, ChangeEvent, FormEvent, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
+export default function CreatePostPage() {
+    const router = useRouter();
+    const [date, setDate] = useState('');
+    const [message, setMessage] = useState('');
+    const [isImmediate, setIsImmediate] = useState(false);
+    const [images, setImages] = useState<File[]>([]);
+    const [error, setError] = useState('');
+
+    const userAge = 28;
+    const numPeople = 2;
+    const locationExample = '渋谷駅周辺';
+    const exampleMessage = `例: 場所: ${locationExample}、人数: ${numPeople}人、年齢: 自分たち ${userAge}歳`;
+
+    useEffect(() => {
+        if (isImmediate) {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            setDate(`${yyyy}-${mm}-${dd}`);
+        } else {
+            setDate('');
+        }
+    }, [isImmediate]);
+
+    const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            const filesArray = Array.from(e.target.files).slice(0, 2); // 最大2枚
+            setImages(filesArray);
+        }
+    };
+
+    const handleSubmit = async (e: FormEvent) => {
+        e.preventDefault();
+        setError('');
+
+        if (!message.trim()) {
+            setError('メッセージは必須です');
+            return;
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append('date', date);
+            formData.append('message', message);
+            formData.append('isImmediate', isImmediate ? '1' : '0');
+            images.forEach((img) => formData.append('images', img));
+
+            const res = await fetch('/api/posts/create', {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!res.ok) throw new Error(await res.text());
+
+            router.push('/auth/dashboard'); 
+        } catch (e: any) {
+            setError(e.message || '投稿に失敗しました');
+        }
+    };
+
+    return (
+        <main className="max-w-md mx-auto p-6">
+            <h1 className="text-2xl font-bold mb-6">新規投稿</h1>
+
+            {error && <p className="text-red-500 mb-4">{error}</p>}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+                {/* 日付 */}
+                <div>
+                    <label className="block mb-1 font-medium">日付</label>
+                    <input
+                        type="date"
+                        value={date}
+                        onChange={(e) => setDate(e.target.value)}
+                        className={`w-full border rounded p-2 ${isImmediate ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                        readOnly={isImmediate}
+                    />
+                </div>
+
+                {/* メッセージ */}
+                <div>
+                    <label className="block mb-1 font-medium">メッセージ</label>
+                    <p className="text-sm text-gray-500 mb-1">
+                        検索機能があるため、場所・人数・自分たちの年齢を書くとリクエストが届きやすくなります
+                    </p>
+                    <textarea
+                        value={message}
+                        onChange={(e) => setMessage(e.target.value)}
+                        placeholder={exampleMessage}
+                        maxLength={255}
+                        rows={4}
+                        className="w-full border rounded p-2 resize-none"
+                        required
+                    />
+                </div>
+
+                {/* 即時フラグ */}
+                <div className="flex items-center space-x-2">
+                    <input
+                        type="checkbox"
+                        checked={isImmediate}
+                        onChange={() => setIsImmediate(!isImmediate)}
+                        id="immediate"
+                    />
+                    <label htmlFor="immediate" className="font-medium">
+                        今すぐ飲みたい
+                    </label>
+                </div>
+
+                {/* 画像アップロード */}
+                <div>
+                    <label className="block mb-1 font-medium">画像（最大2枚）</label>
+                    <p className="text-sm text-gray-500 mb-2">
+                        添付ファイルは基本的に正方形で表示されます
+                    </p>
+
+                    {/* ファイル選択ボタン */}
+                    <label className="block w-full bg-gray-200 text-gray-700 py-3 text-center rounded-lg cursor-pointer hover:bg-gray-300 transition">
+                        画像を選択
+                        <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            onChange={handleImageChange}
+                            className="hidden"
+                            disabled={images.length >= 2} // 2枚で制限
+                        />
+                    </label>
+
+                    {/* プレビュー */}
+                    {images.length > 0 && (
+                        <div className="mt-2 flex gap-2 overflow-x-auto">
+                            {images.map((img, idx) => (
+                                <div key={idx} className="relative w-24 h-24 flex-shrink-0">
+                                    <img
+                                        src={URL.createObjectURL(img)}
+                                        alt={`preview-${idx}`}
+                                        className="w-full h-full object-cover rounded"
+                                    />
+                                    {/* 削除ボタン */}
+                                    <button
+                                        type="button"
+                                        className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center"
+                                        onClick={() => setImages(images.filter((_, i) => i !== idx))}
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* 送信ボタン */}
+                <button
+                    type="submit"
+                    className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-xl shadow-md transition"
+                >
+                    投稿する
+                </button>
+            </form>
+        </main>
+    );
+}

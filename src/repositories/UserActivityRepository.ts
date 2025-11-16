@@ -8,6 +8,7 @@ type UserActivity = {
     last_login_at: Date | null;
     last_checked_requests_at: Date | null;
     last_checked_accepted_at: Date | null;
+    last_dm_checked_at: Date | null;   
     created_at: Date;
     updated_at: Date;
 };
@@ -32,8 +33,18 @@ export class UserActivityRepository {
     /**
      * 通知確認日時を現在の時間に更新（通知既読処理）
      */
-    static async markAsRead(userId: number, type: 'requests' | 'accepted'): Promise<void> {
-        const field = type === 'requests' ? 'last_checked_requests_at' : 'last_checked_accepted_at';
+    static async markAsRead(userId: number, type: 'requests' | 'accepted' | 'dm'): Promise<void> {
+        let field = '';
+        if (type === 'requests') {
+            field = 'last_checked_requests_at';
+        } else if (type === 'accepted') {
+            field = 'last_checked_accepted_at';
+        } else if (type === 'dm') {
+            field = 'last_dm_checked_at';
+        } else {
+            throw new Error(`Invalid notification type: ${type}`);
+        }
+
         await db.execute(
             `UPDATE user_activity SET ${field} = NOW() WHERE user_id = ?`,
             [userId]

@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import ConversationModalFromRequest from '@/app/components/ui/ConversationModalFromRequest';
+import ProfileModal from '@/app/components/ui/ProfileModal';
 
 type Request = {
     request_id: number;
@@ -11,6 +13,12 @@ type Request = {
     user_profile_image: string | null;
     from_user_id: number;
     to_user_id: number;
+    post_date: string; // 合流希望日
+};
+
+type MessageType = {
+    id: number;
+    content: string;
 };
 
 type ActionStatus = 'accepted' | 'rejected' | null;
@@ -74,17 +82,18 @@ const ApproveModal: React.FC<ApproveModalProps> = ({
 };
 
 export default function RequestsPage() {
-    const [requestList, setRequestList] = useState<Request[]>([]);
+    const [requestsFromMe, setRequestsFromMe] = useState<Request[]>([]);
+    const [requestsFromOthers, setRequestsFromOthers] = useState<Request[]>([]);
     const [actionStatuses, setActionStatuses] = useState<Record<number, ActionStatus>>({});
     const [error, setError] = useState<string | null>(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [modalRequestId, setModalRequestId] = useState<number | null>(null);
     const [tab, setTab] = useState<'fromMe' | 'fromOthers'>('fromOthers');
+    const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
+    const [modalRequestId, setModalRequestId] = useState<number | null>(null);
     const [highlightIds, setHighlightIds] = useState<number[]>([]);
-    const searchParams = useSearchParams();
+    const [openConversationId, setOpenConversationId] = useState<number | null>(null);
+    const [openProfileId, setOpenProfileId] = useState<number | null>(null);
 
-    // ログイン中の自分のID
-    const selfUserId = 5;
+    const searchParams = useSearchParams();
 
     useEffect(() => {
         setHighlightIds(
@@ -93,37 +102,44 @@ export default function RequestsPage() {
     }, [searchParams]);
 
     useEffect(() => {
-        async function fetchRequests() {
+        async function fetchRequestsFromMe() {
             try {
-                const res = await fetch('/api/requests/getRequests');
+                const res = await fetch('/api/requests/getFromMe');
                 const data = await res.json();
-                if (res.ok) {
-                    setRequestList(data.requestList || []);
-                } else {
-                    setError(data.error || 'データの取得に失敗しました');
-                }
+                if (res.ok) setRequestsFromMe(data.requestList || []);
+                else throw new Error('自分からのリクエスト取得に失敗しました');
             } catch {
-                setError('ネットワークエラーが発生しました');
+                setError('自分からのリクエストの取得に失敗しました');
             }
         }
-        fetchRequests();
+
+        async function fetchRequestsFromOthers() {
+            try {
+                const res = await fetch('/api/requests/getFromOthers');
+                const data = await res.json();
+                if (res.ok) setRequestsFromOthers(data.requestList || []);
+                else throw new Error('相手からのリクエスト取得に失敗しました');
+            } catch {
+                setError('相手からのリクエストの取得に失敗しました');
+            }
+        }
+
+        fetchRequestsFromMe();
+        fetchRequestsFromOthers();
     }, []);
 
-    // undefined安全にfilter
-    const filteredList = (requestList ?? []).filter((r) =>
-        tab === 'fromMe' ? r.from_user_id === selfUserId : r.to_user_id === selfUserId
-    );
+    const currentList = tab === 'fromMe' ? requestsFromMe : requestsFromOthers;
 
-    function openModal(requestId: number) {
+    function openApproveModal(requestId: number) {
         setModalRequestId(requestId);
-        setIsModalOpen(true);
+        setIsApproveModalOpen(true);
     }
 
     async function submitAction(message: string) {
         if (modalRequestId === null) return;
 
         setActionStatuses((prev) => ({ ...prev, [modalRequestId]: 'accepted' }));
-        setIsModalOpen(false);
+        setIsApproveModalOpen(false);
 
         try {
             const res = await fetch(`/api/requests/${modalRequestId}/accepted`, {
@@ -150,12 +166,18 @@ export default function RequestsPage() {
         }
     }
 
+    function openProfile(user: Request) {
+        const otherUserId = tab === 'fromOthers' ? user.from_user_id : user.to_user_id;
+        setOpenProfileId(otherUserId);
+    }
+
     return (
-        <div className="p-6 max-w-3xl mx-auto">
-            <h1 className="text-2xl font-semibold mb-6">リクエスト一覧</h1>
+        <div className="p-6 max-w-md mx-auto">
+            <h1 className="text-2xl font-semibold mb-6">リクエストリスト</h1>
 
             {error && <p className="text-red-500 mb-4">{error}</p>}
 
+            {/* タブ切り替え */}
             <div className="flex mb-4 border-b border-gray-300">
                 <button
                     onClick={() => setTab('fromMe')}
@@ -175,11 +197,12 @@ export default function RequestsPage() {
                 </button>
             </div>
 
+            {/* リクエストリスト */}
             <ul className="space-y-4">
-                {filteredList.length === 0 ? (
+                {currentList.length === 0 ? (
                     <li className="text-gray-500">リクエストはありません</li>
                 ) : (
-                    filteredList.map((user) => {
+                    currentList.map((user) => {
                         const isHighlighted = highlightIds.includes(user.request_id);
                         const status = actionStatuses[user.request_id];
                         const isFromOthers = tab === 'fromOthers';
@@ -187,63 +210,97 @@ export default function RequestsPage() {
                         return (
                             <li
                                 key={user.request_id}
-                                className={`flex items-center p-4 border rounded-lg shadow-sm hover:bg-gray-50 ${
+                                className={`flex flex-col items-start p-4 border rounded-lg shadow-sm hover:bg-gray-50 ${
                                     isHighlighted ? 'border-blue-500 bg-blue-50' : 'bg-white'
                                 }`}
                             >
-                                <div className="w-24 h-24 rounded-full overflow-hidden mr-6 flex-shrink-0">
-                                    {user.user_profile_image ? (
-                                        <img
-                                            src={user.user_profile_image}
-                                            alt={user.user_display_name}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full bg-gray-300 flex items-center justify-center text-white font-semibold text-2xl">
-                                            {user.user_display_name[0]}
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="flex-1">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <h2 className="text-lg font-medium">{user.user_display_name}</h2>
-                                        <span className="text-sm text-gray-500">
-                                            {new Date(user.request_created_at).toLocaleString()}
-                                        </span>
-                                    </div>
-                                    <div className="mb-3">
-                                        <p className="text-sm text-blue-800 font-medium">リクエストメッセージ:</p>
-                                        <p className="text-sm text-gray-700">{user.request_message}</p>
+                                {/* アイコンとボタン */}
+                                <div className="flex items-start mb-3">
+                                    <div className="w-28 h-28 rounded-full overflow-hidden flex-shrink-0">
+                                        {user.user_profile_image ? (
+                                            <img
+                                                src={user.user_profile_image}
+                                                alt={user.user_display_name}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full bg-gray-300 flex items-center justify-center text-white font-semibold text-3xl">
+                                                {user.user_display_name[0]}
+                                            </div>
+                                        )}
                                     </div>
 
-                                    {isFromOthers && (
-                                        <div className="flex space-x-3">
+                                    <div className="flex-1 flex flex-col justify-between ml-4">
+                                        <div>
+                                            <h2 className="text-lg font-medium">{user.user_display_name}</h2>
+                                            <span className="text-sm text-gray-500 mt-1 block">
+                                                合流希望日: {new Date(user.post_date).toLocaleDateString('ja-JP')}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex flex-col space-y-2 mt-3">
                                             <button
-                                                onClick={() => openModal(user.request_id)}
-                                                disabled={!!status}
-                                                className={`px-4 py-2 rounded font-semibold text-white ${
-                                                    status === 'accepted'
-                                                        ? 'bg-green-600 cursor-default'
-                                                        : 'bg-green-500 hover:bg-green-600'
-                                                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                                className="w-full px-4 py-2 text-base bg-blue-500 text-white rounded hover:bg-blue-600"
+                                                onClick={() => setOpenConversationId(user.request_id)}
                                             >
-                                                {status === 'accepted' ? '承諾済み' : '承諾'}
+                                                やりとり
                                             </button>
                                             <button
-                                                onClick={() => rejectAction(user.request_id)}
-                                                disabled={!!status}
-                                                className={`px-4 py-2 rounded font-semibold text-white ${
-                                                    status === 'rejected'
-                                                        ? 'bg-gray-400 cursor-default'
-                                                        : 'bg-gray-600 hover:bg-gray-700'
-                                                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                                className="w-full px-4 py-2 text-base bg-gray-500 text-white rounded hover:bg-gray-600"
+                                                onClick={() => openProfile(user)}
                                             >
-                                                {status === 'rejected' ? '拒否済み' : '拒否'}
+                                                プロフィール
                                             </button>
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
+
+                                {/* 送信日時 */}
+                                <div className="text-sm text-gray-500 mb-2">
+                                    {tab === 'fromOthers' ? '受信日時' : '送信日時'}:{' '}
+                                    {new Date(user.request_created_at).toLocaleString('ja-JP')}
+                                </div>
+
+                                {/* メッセージ */}
+                                <div className="mb-3">
+                                    <p className="text-sm text-blue-800 font-medium">リクエストメッセージ:</p>
+                                    <p className="text-sm text-gray-700">{user.request_message}</p>
+                                </div>
+
+                                {/* 承諾・拒否ボタン */}
+                                {isFromOthers && (
+                                    <div className="flex space-x-2">
+                                        <button
+                                            onClick={() => openApproveModal(user.request_id)}
+                                            disabled={!!status}
+                                            className={`w-full px-4 py-2 rounded font-semibold text-white ${
+                                                status === 'accepted'
+                                                    ? 'bg-green-600 cursor-default'
+                                                    : 'bg-green-500 hover:bg-green-600'
+                                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                        >
+                                            {status === 'accepted' ? '承諾済み' : '承諾'}
+                                        </button>
+                                        <button
+                                            onClick={() => rejectAction(user.request_id)}
+                                            disabled={!!status}
+                                            className={`w-full px-4 py-2 rounded font-semibold text-white ${
+                                                status === 'rejected'
+                                                    ? 'bg-gray-400 cursor-default'
+                                                    : 'bg-gray-600 hover:bg-gray-700'
+                                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                        >
+                                            {status === 'rejected' ? '拒否済み' : '拒否'}
+                                        </button>
+                                    </div>
+                                )}
+
+                                {openConversationId === user.request_id && (
+                                    <ConversationModalFromRequest
+                                        requestId={user.request_id}
+                                        onClose={() => setOpenConversationId(null)}
+                                    />
+                                )}
                             </li>
                         );
                     })
@@ -251,9 +308,15 @@ export default function RequestsPage() {
             </ul>
 
             <ApproveModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
+                isOpen={isApproveModalOpen}
+                onClose={() => setIsApproveModalOpen(false)}
                 onSubmit={submitAction}
+            />
+
+            <ProfileModal
+                userId={openProfileId ?? 0}
+                isOpen={!!openProfileId}
+                onClose={() => setOpenProfileId(null)}
             />
         </div>
     );

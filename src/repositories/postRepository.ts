@@ -1,12 +1,13 @@
 // src/repositories/postRepository.ts
 import db from '@/lib/db';
+import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 
 export type PostRow = {
     post_id: number;
     user_id: string;
     message: string;
     age: number;
-    created_at: string; // DB の型に合わせて string or Date
+    date: string; // DB の型に合わせて string or Date
     display_name: string;
     x_username?: string | null;
     insta_username?: string | null;
@@ -40,7 +41,7 @@ export class PostRepository {
                 p.id AS post_id,
                 p.user_id,
                 p.message,
-                p.created_at,
+                p.date,
                 u.display_name,
                 u.age,
                 u.x_username,
@@ -152,5 +153,106 @@ export class PostRepository {
         );
 
         return rows as PostRow[];
+    }
+
+    static async createPost(data: {
+        user_id: number;
+        date?: string;
+        message: string;
+        isImmediate?: boolean;
+    }) {
+        const { user_id, date, message, isImmediate = false } = data;
+
+        const sql = `
+            INSERT INTO posts (user_id, date, message, is_immediate, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, 'active', NOW(), NOW())
+        `;
+
+        const [result] = await db.execute(sql, [user_id, date || null, message, isImmediate ? 1 : 0]);
+
+        // result は OkPacket 型なので insertId で取得
+        const insertId = (result as any).insertId;
+
+        return { post_id: insertId };
+    }
+
+    static async addPostImage(data: { post_id: number; image_url: string; order: number }) {
+        const sql = `
+            INSERT INTO post_images (post_id, image_url, \`order\`, created_at)
+            VALUES (?, ?, ?, NOW())
+        `;
+        await db.execute(sql, [data.post_id, data.image_url, data.order]);
+    }
+
+    static async findByUserId(user_id: number): Promise<PostRow[]> {
+        const [rows] = await db.query(
+            `
+            SELECT 
+                p.id,
+                p.user_id,
+                p.message,
+                p.date,
+                p.is_immediate,
+                p.status,
+                p.created_at,
+                i.image_url
+            FROM posts p
+            LEFT JOIN post_images i 
+                ON p.id = i.post_id AND i.order = 1
+            WHERE p.user_id = ?
+            ORDER BY p.created_at DESC
+            `,
+            [user_id]
+        )
+        return rows as PostRow[]
+    }
+
+    /**
+     * 投稿詳細を JOIN で丸ごと取得
+     */
+    static async getPostDetailById(postId: number) {
+        const [rows] = await db.execute<RowDataPacket[]>(`
+            SELECT 
+                p.id AS post_id,
+                p.user_id,
+                p.date,
+                p.message,
+                p.is_immediate,
+                p.status,
+                p.created_at,
+                pi.image_url,
+                pi.\`order\` AS image_order
+            FROM posts p
+            LEFT JOIN post_images pi 
+                ON p.id = pi.post_id
+            WHERE p.id = ?
+            ORDER BY pi.\`order\` ASC
+        `, [postId]);
+
+        if (!rows || rows.length === 0) return null;
+
+        // --- post の共通情報 ---
+        const base = {
+            id: rows[0].post_id,
+            user_id: rows[0].user_id,
+            date: rows[0].date,
+            message: rows[0].message,
+            is_immediate: rows[0].is_immediate,
+            status: rows[0].status,
+            created_at: rows[0].created_at,
+        };
+
+        // --- 画像をまとめる ---
+        const post_images = rows
+            .filter(r => r.image_url !== null)
+            .map(r => ({
+                image_url: r.image_url,
+                order: r.image_order
+            }));
+
+        return {
+            ...base,
+            post_images
+        };
     }
 }

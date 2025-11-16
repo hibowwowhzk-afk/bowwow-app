@@ -33,11 +33,15 @@ export async function GET(req: NextRequest) {
 
         rows.forEach((row) => {
             if (!postMap[row.post_id]) {
+                const dateObj = new Date(row.date);
+                const jstDate = new Date(dateObj.getTime() + 9 * 60 * 60 * 1000);
+                const dateOnly = jstDate.toISOString().split('T')[0];
+        
                 const newPost = {
                     id: row.post_id,
                     user_id: row.user_id,
                     message: row.message,
-                    created_at: row.created_at,
+                    date: dateOnly, // ✅ T以降削除
                     user: {
                         display_name: row.display_name,
                         age: row.age,
@@ -49,7 +53,7 @@ export async function GET(req: NextRequest) {
                 postMap[row.post_id] = newPost;
                 posts.push(newPost);
             }
-
+        
             if (row.image_url) {
                 postMap[row.post_id].images.push({
                     url: row.image_url,
@@ -57,7 +61,6 @@ export async function GET(req: NextRequest) {
                 });
             }
         });
-
         return NextResponse.json(posts);
     } catch (err: any) {
         console.error('immediate posts error:', err);

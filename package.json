@@ -12,6 +12,7 @@
     "@heroicons/react": "^2.2.0",
     "@radix-ui/react-slot": "^1.2.3",
     "class-variance-authority": "^0.7.1",
+    "cloudinary": "^2.8.0",
     "clsx": "^2.1.1",
     "firebase": "^12.2.1",
     "firebase-admin": "^13.5.0",

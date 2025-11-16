@@ -113,4 +113,39 @@ export class UserRepository {
             return false;
         }
     }
+
+    /**
+     * 指定したユーザーIDのプロフィール情報と画像URLを取得する
+     * @param userId - ユーザーID
+     * @returns UserProfile 型オブジェクト（画像URLを含む）、存在しなければ null
+     */
+    static async getProfileById(userId: number): Promise<{
+        user_id: number;
+        display_name: string;
+        age: number;
+        residence: string | null;
+        occupation: string | null;
+        message: string | null;
+        image_url: string | null;
+    } | null> {
+        // プロフィール取得
+        const [profileRows] = await db.execute(
+            'SELECT user_id, display_name, age, residence, occupation, message FROM user_profile WHERE user_id = ? LIMIT 1',
+            [userId]
+        );
+        const profile = (profileRows as any[])[0];
+        if (!profile) return null;
+
+        // プロフィール画像取得（優先順に1件）
+        const [imageRows] = await db.execute(
+            'SELECT image_url FROM user_profile_image WHERE user_id = ? ORDER BY `order` ASC LIMIT 1',
+            [userId]
+        );
+        const image = (imageRows as any[])[0];
+
+        return {
+            ...profile,
+            image_url: image?.image_url ?? null
+        };
+    }
 }

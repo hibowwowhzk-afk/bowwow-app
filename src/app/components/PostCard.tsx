@@ -8,7 +8,7 @@ type Post = {
     id: number;
     user_id: number;
     message: string;
-    created_at: string;
+    date: string;
     user: {
         display_name: string;
         age?: number;
@@ -107,7 +107,7 @@ export const PostCard: React.FC<{ post: Post }> = ({ post }) => {
                 </p>
 
                 <small style={{ color: "#666" }}>
-                    投稿日時: {new Date(post.created_at).toLocaleString()}
+                    合流希望日: {new Date(post.date + "T00:00:00+09:00").toLocaleDateString('ja-JP')}
                 </small>
 
                 {/* SNSアイコン表示 */}

@@ -1,0 +1,32 @@
+// src/app/api/matchings/getFromOthers/route.ts
+
+import { NextResponse } from 'next/server';
+import { MatchesRepository } from '@/repositories/MatchesRepository';
+import { UserRepository } from '@/repositories/UserRepository';
+import { verifySessionFromRequest } from '@/lib/firebase-session';
+
+export async function GET() {
+    try {
+        // セッション認証
+        const authResult = await verifySessionFromRequest();
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+        }
+
+        const uid = authResult.uid;
+
+        // 自分のプロフィール取得
+        const user = await UserRepository.findUserWithProfileByUID(uid);
+        if (!user) {
+            return NextResponse.json({ error: 'ユーザー情報が見つかりません' }, { status: 404 });
+        }
+
+        // 相手からのマッチング取得
+        const rows = await MatchesRepository.getMatchingsFromOthers(user.user_id);
+
+        return NextResponse.json({ matchingsList: rows });
+    } catch (error) {
+        console.error(error);
+        return NextResponse.json({ error: 'データ取得に失敗しました' }, { status: 500 });
+    }
+}

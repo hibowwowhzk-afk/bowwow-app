@@ -129,4 +129,94 @@ export class RequestRepository {
         const [result] = await db.execute(sql, [status, requestId]);
         return result;
     }
+
+    // 自分から送ったリクエスト
+    static async getRequestsFromMe(userId: number) {
+        try {
+            const [rows] = await db.execute(`
+                SELECT
+                    p.date AS post_date,
+                    r.id AS request_id,
+                    r.message AS request_message,
+                    r.created_at AS request_created_at,
+                    u.display_name AS user_display_name,
+                    pi.image_url AS user_profile_image,
+                    r.from_user_id,
+                    r.to_user_id
+                FROM requests r
+                JOIN posts p ON r.post_id = p.id
+                JOIN user_profile u ON r.to_user_id = u.user_id
+                LEFT JOIN user_profile_image pi ON r.to_user_id = pi.user_id AND pi.order = 1
+                WHERE r.from_user_id = ?
+                    AND p.status = 'active'
+                    AND r.status = 'pending'
+                ORDER BY r.created_at DESC
+            `, [userId]);
+
+            return rows;
+        } catch (error) {
+            console.error('Error fetching requests from me:', error);
+            throw new Error('自分からのリクエストの取得に失敗しました');
+        }
+    }
+
+    // 自分が受け取ったリクエスト
+    static async getRequestsFromOthers(userId: number) {
+        try {
+            const [rows] = await db.execute(`
+                SELECT
+                    p.date AS post_date,
+                    r.id AS request_id,
+                    r.message AS request_message,
+                    r.created_at AS request_created_at,
+                    u.display_name AS user_display_name,
+                    pi.image_url AS user_profile_image,
+                    r.from_user_id,
+                    r.to_user_id
+                FROM requests r
+                JOIN posts p ON r.post_id = p.id
+                JOIN user_profile u ON r.from_user_id = u.user_id
+                LEFT JOIN user_profile_image pi ON r.from_user_id = pi.user_id AND pi.order = 1
+                WHERE r.to_user_id = ?
+                    AND p.status = 'active'
+                    AND r.status = 'pending'
+                ORDER BY r.created_at DESC
+            `, [userId]);
+
+            return rows;
+        } catch (error) {
+            console.error('Error fetching requests from others:', error);
+            throw new Error('相手からのリクエストの取得に失敗しました');
+        }
+    }
+
+    static async getRequestDetailById(requestId: number): Promise<{
+        request_message: string;
+        from_user_id: number;
+        request_created_at: string;
+        post_id: number;
+    } | null> {
+        const sql = `
+            SELECT
+                r.message AS request_message,
+                r.from_user_id,
+                r.created_at AS request_created_at,
+                r.post_id
+            FROM requests r
+            WHERE r.id = ?
+            LIMIT 1
+        `;
+
+        const [rows] = await db.execute<RowDataPacket[]>(sql, [requestId]);
+        if (rows.length === 0) return null;
+
+        const row = rows[0];
+
+        return {
+            request_message: String(row.request_message),
+            from_user_id: Number(row.from_user_id),
+            request_created_at: String(row.request_created_at),
+            post_id: Number(row.post_id),
+        };
+    }
 }

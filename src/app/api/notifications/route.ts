@@ -5,6 +5,7 @@ import { verifySessionFromRequest } from '@/lib/firebase-session';
 import { UserRepository } from '@/repositories/UserRepository';
 import { RequestRepository } from '@/repositories/RequestRepository';
 import { UserActivityRepository } from '@/repositories/UserActivityRepository';
+import { SnsNotificationsRepository } from '@/repositories/SnsNotificationsRepository';
 
 export async function GET(req: NextRequest) {
     try {
@@ -21,19 +22,25 @@ export async function GET(req: NextRequest) {
             throw new Error('ユーザー情報が見つかりません');
         }
 
+        // 最終確認日時
         const activity = await UserActivityRepository.findByUserId(user.user_id);
         const lastCheckedRequests = activity?.last_checked_requests_at ?? new Date(0);
         const lastCheckedAccepted = activity?.last_checked_accepted_at ?? new Date(0);
+        const lastCheckedDm = activity?.last_dm_checked_at ?? new Date(0);
 
         // 未読リクエスト・承諾通知取得
         const incoming = await RequestRepository.getUnreadIncomingRequests(user.user_id, lastCheckedRequests);
         const accepted = await RequestRepository.getUnreadAcceptedRequests(user.user_id, lastCheckedAccepted);
 
+        // 未読 DM 通知取得
+        const dmNotifications = await SnsNotificationsRepository.getUnreadByToUserId(user.user_id, lastCheckedDm);
         return NextResponse.json({
             pendingRequests: incoming,
             acceptedRequests: accepted,
+            dmNotifications: dmNotifications,
         });
     } catch (error) {
+        console.error(error);
         return NextResponse.json({ error: 'データの取得に失敗しました' }, { status: 500 });
     }
 }
