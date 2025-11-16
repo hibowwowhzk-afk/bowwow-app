@@ -7,24 +7,27 @@ import { RequestRepository } from "@/repositories/RequestRepository";
 import { PostRepository } from "@/repositories/PostRepository";
 import { SnsNotificationsRepository } from "@/repositories/SnsNotificationsRepository";
 
-export async function GET(req: Request, context: { params: Record<string, string> }) {
+export async function GET(req: Request) {
     try {
+        const url = new URL(req.url);
+        const matchIdStr = url.pathname.split("/").pop();
+        if (!matchIdStr) {
+            return NextResponse.json({ error: "Missing matchId" }, { status: 400 });
+        }
+        const matchId = Number(matchIdStr);
+
         const authResult = await verifySessionFromRequest();
         if ("error" in authResult) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status });
         }
         const uid = authResult.uid;
 
-        // 自分のプロフィール取得
         const user = await UserRepository.findUserWithProfileByUID(uid);
         if (!user) {
             return NextResponse.json({ error: "ユーザー情報が見つかりません" }, { status: 404 });
         }
         const selfUserId = user.user_id;
 
-        const matchId = Number(context.params.matchId);
-
-        // ---- 承諾メッセージ（マッチ情報） ----
         const matchMessageInfo = await MatchesRepository.getMatchDetail(matchId);
         if (!matchMessageInfo) {
             return NextResponse.json({ error: "Matching not found" }, { status: 404 });
@@ -32,16 +35,13 @@ export async function GET(req: Request, context: { params: Record<string, string
         const requestId = matchMessageInfo.request_id;
         const postId = matchMessageInfo.post_id;
 
-        // ---- DM送信通知 ----
         const dmMessageInfo = await SnsNotificationsRepository.getByMatchId(matchId);
 
-        // ---- リクエストメッセージ ----
         let requestMessageInfo = null;
         if (requestId) {
             requestMessageInfo = await RequestRepository.getRequestDetailById(requestId);
         }
 
-        // ---- ポスト情報 ----
         let postInfo = null;
         if (postId) {
             postInfo = await PostRepository.getPostDetailById(postId);
