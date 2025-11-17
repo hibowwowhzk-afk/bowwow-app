@@ -5,7 +5,7 @@ import { SnsNotificationsRepository } from '@/repositories/SnsNotificationsRepos
 import { UserRepository } from '@/repositories/UserRepository';
 import { MatchesRepository } from '@/repositories/MatchesRepository';
 
-export async function POST(req: NextRequest, { params }: { params: { matchId: string } }) {
+export async function POST(req: NextRequest, context: { params: { matchId: string } }) {
     try {
         const authResult = await verifySessionFromRequest();
         if ('error' in authResult) {
@@ -17,18 +17,31 @@ export async function POST(req: NextRequest, { params }: { params: { matchId: st
         // 自分のプロフィール取得
         const user = await UserRepository.findUserWithProfileByUID(uid);
         if (!user) {
-            return NextResponse.json({ error: 'ユーザー情報が見つかりません' }, { status: 404 });
+            return NextResponse.json(
+                { error: 'ユーザー情報が見つかりません' },
+                { status: 404 }
+            );
         }
 
-        const matchId = Number(params.matchId);
-        if (isNaN(matchId)) return NextResponse.json({ error: 'matchId が無効です' }, { status: 400 });
+        const matchId = Number(context.params.matchId);
+        if (isNaN(matchId)) {
+            return NextResponse.json(
+                { error: 'matchId が無効です' },
+                { status: 400 }
+            );
+        }
 
         const body = await req.json();
         const message: string = body.message ?? 'DM送信しました。よろしくお願いします。';
 
         // マッチ情報から相手の user_id を取得
         const match = await MatchesRepository.findMatchIdAndToUser(matchId);
-        if (!match) return NextResponse.json({ error: 'マッチが見つかりません' }, { status: 404 });
+        if (!match) {
+            return NextResponse.json(
+                { error: 'マッチが見つかりません' },
+                { status: 404 }
+            );
+        }
 
         // 通知登録
         await SnsNotificationsRepository.create({
@@ -41,6 +54,9 @@ export async function POST(req: NextRequest, { params }: { params: { matchId: st
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error(error);
-        return NextResponse.json({ error: '通知送信に失敗しました' }, { status: 500 });
+        return NextResponse.json(
+            { error: '通知送信に失敗しました' },
+            { status: 500 }
+        );
     }
 }

@@ -7,10 +7,9 @@ import { RequestRepository } from "@/repositories/RequestRepository";
 import { PostRepository } from "@/repositories/PostRepository";
 import { SnsNotificationsRepository } from "@/repositories/SnsNotificationsRepository";
 
-export async function GET(req: Request) {
-    try {
-        const url = new URL(req.url);
-        const matchIdStr = url.pathname.split("/").pop();
+export async function GET(req: Request, context: { params: { matchId: string } }) {
+        try {
+        const matchIdStr = context.params.matchId;
         if (!matchIdStr) {
             return NextResponse.json({ error: "Missing matchId" }, { status: 400 });
         }
