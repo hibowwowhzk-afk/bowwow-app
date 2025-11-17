@@ -5,37 +5,29 @@ import { SnsNotificationsRepository } from '@/repositories/SnsNotificationsRepos
 import { UserRepository } from '@/repositories/UserRepository';
 import { MatchesRepository } from '@/repositories/MatchesRepository';
 
-export async function POST(req: NextRequest, context: { params: Record<string, string> }) {
+export async function POST(req: NextRequest) {
     try {
+        const url = new URL(req.url);
+        const pathSegments = url.pathname.split('/');
+        const matchIdStr = pathSegments[pathSegments.length - 2]; // [matchId] の位置
+        if (!matchIdStr) {
+            return NextResponse.json({ error: 'matchId が指定されていません' }, { status: 400 });
+        }
+        const matchId = Number(matchIdStr);
+        if (isNaN(matchId)) {
+            return NextResponse.json({ error: 'matchId が無効です' }, { status: 400 });
+        }
+
         const authResult = await verifySessionFromRequest();
         if ('error' in authResult) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status });
         }
-
         const uid = authResult.uid;
 
         // 自分のプロフィール取得
         const user = await UserRepository.findUserWithProfileByUID(uid);
         if (!user) {
-            return NextResponse.json(
-                { error: 'ユーザー情報が見つかりません' },
-                { status: 404 }
-            );
-        }
-
-        const matchIdStr = context.params.matchId;
-        if (!matchIdStr) {
-            return NextResponse.json(
-                { error: 'matchId が指定されていません' },
-                { status: 400 }
-            );
-        }
-        const matchId = Number(matchIdStr);
-        if (isNaN(matchId)) {
-            return NextResponse.json(
-                { error: 'matchId が無効です' },
-                { status: 400 }
-            );
+            return NextResponse.json({ error: 'ユーザー情報が見つかりません' }, { status: 404 });
         }
 
         const body = await req.json();
@@ -44,10 +36,7 @@ export async function POST(req: NextRequest, context: { params: Record<string, s
         // マッチ情報から相手の user_id を取得
         const match = await MatchesRepository.findMatchIdAndToUser(matchId);
         if (!match) {
-            return NextResponse.json(
-                { error: 'マッチが見つかりません' },
-                { status: 404 }
-            );
+            return NextResponse.json({ error: 'マッチが見つかりません' }, { status: 404 });
         }
 
         // 通知登録
@@ -61,9 +50,6 @@ export async function POST(req: NextRequest, context: { params: Record<string, s
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error(error);
-        return NextResponse.json(
-            { error: '通知送信に失敗しました' },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: '通知送信に失敗しました' }, { status: 500 });
     }
 }

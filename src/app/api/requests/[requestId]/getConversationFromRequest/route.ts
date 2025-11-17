@@ -6,40 +6,29 @@ import { UserRepository } from '@/repositories/UserRepository';
 import { RequestRepository } from '@/repositories/RequestRepository';
 import { PostRepository } from '@/repositories/PostRepository';
 
-export async function GET(req: Request, context: { params: Record<string, string> }) {
+export async function GET(req: Request) {
     try {
         const authResult = await verifySessionFromRequest();
         if ('error' in authResult) {
-            return NextResponse.json(
-                { error: authResult.error },
-                { status: authResult.status }
-            );
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status });
         }
         const uid = authResult.uid;
 
         // 自分のプロフィール取得
         const user = await UserRepository.findUserWithProfileByUID(uid);
         if (!user) {
-            return NextResponse.json(
-                { error: 'ユーザー情報が見つかりません' },
-                { status: 404 }
-            );
+            return NextResponse.json({ error: 'ユーザー情報が見つかりません' }, { status: 404 });
         }
         const selfUserId = user.user_id;
 
-        const requestIdStr = context.params.requestId;
-        if (!requestIdStr) {
-            return NextResponse.json(
-                { error: 'requestId が指定されていません' },
-                { status: 400 }
-            );
-        }
+        // URLから requestId を取得
+        const url = new URL(req.url);
+        const pathSegments = url.pathname.split('/');
+        // 例: /api/matchings/123/getConversationFromMatching
+        const requestIdStr = pathSegments[pathSegments.length - 1]; 
         const requestId = Number(requestIdStr);
-        if (isNaN(requestId)) {
-            return NextResponse.json(
-                { error: '不正な requestId です' },
-                { status: 400 }
-            );
+        if (!requestId || isNaN(requestId)) {
+            return NextResponse.json({ error: '不正な requestId です' }, { status: 400 });
         }
 
         const requestMessageInfo = await RequestRepository.getRequestDetailById(requestId);
@@ -48,10 +37,7 @@ export async function GET(req: Request, context: { params: Record<string, string
         // ---- ポスト情報 ----
         const postInfo = postId ? await PostRepository.getPostDetailById(postId) : null;
         if (!postInfo) {
-            return NextResponse.json(
-                { error: 'Post not found' },
-                { status: 404 }
-            );
+            return NextResponse.json({ error: 'Post not found' }, { status: 404 });
         }
 
         return NextResponse.json({
@@ -72,9 +58,6 @@ export async function GET(req: Request, context: { params: Record<string, string
 
     } catch (err) {
         console.error(err);
-        return NextResponse.json(
-            { error: 'Server error' },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: 'Server error' }, { status: 500 });
     }
 }

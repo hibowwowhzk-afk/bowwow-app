@@ -1,41 +1,33 @@
-import { NextRequest, NextResponse } from 'next/server';
+// src/app/api/matchings/[matchId]/getConversationFromMatching/route.ts
+import { NextResponse } from 'next/server';
 import { verifySessionFromRequest } from '@/lib/firebase-session';
 import { UserRepository } from '@/repositories/UserRepository';
 import { RequestRepository } from '@/repositories/RequestRepository';
 import { PostRepository } from '@/repositories/PostRepository';
 
-interface ContextParams {
-    params: {
-        requestId: string;
-    };
-}
-
-export async function GET(req: NextRequest, context: ContextParams) {
+export async function GET(req: Request) {
     try {
+        const url = new URL(req.url);
+        const pathSegments = url.pathname.split('/');
+        const matchIdStr = pathSegments[pathSegments.length - 1]; // 最後のセグメント
+        if (!matchIdStr) {
+            return NextResponse.json({ error: 'matchId が指定されていません' }, { status: 400 });
+        }
+        const matchId = Number(matchIdStr);
+
         const authResult = await verifySessionFromRequest();
         if ('error' in authResult) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status });
         }
-
         const uid = authResult.uid;
 
         const user = await UserRepository.findUserWithProfileByUID(uid);
         if (!user) {
             return NextResponse.json({ error: 'ユーザー情報が見つかりません' }, { status: 404 });
         }
-        const selfUserId = user.user_id;
 
-        const requestIdStr = context.params.requestId;
-        if (!requestIdStr) {
-            return NextResponse.json({ error: 'requestId が指定されていません' }, { status: 400 });
-        }
-
-        const requestId = Number(requestIdStr);
-        if (isNaN(requestId)) {
-            return NextResponse.json({ error: '不正な requestId です' }, { status: 400 });
-        }
-
-        const requestMessageInfo = await RequestRepository.getRequestDetailById(requestId);
+        // matchId を使った処理
+        const requestMessageInfo = await RequestRepository.getRequestDetailById(matchId);
         const postId = requestMessageInfo?.post_id;
 
         const postInfo = postId ? await PostRepository.getPostDetailById(postId) : null;
@@ -44,7 +36,7 @@ export async function GET(req: NextRequest, context: ContextParams) {
         }
 
         return NextResponse.json({
-            self_user_id: selfUserId,
+            self_user_id: user.user_id,
             post_message: postInfo.message,
             post_date: postInfo.date,
             post_images: postInfo.post_images?.map(img => img.image_url) ?? [],

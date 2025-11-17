@@ -1,5 +1,4 @@
 // src/app/api/requests/[requestId]/[action]/route.ts
-
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { RequestRepository } from '@/repositories/RequestRepository';
@@ -7,25 +6,27 @@ import { MatchesRepository } from '@/repositories/MatchesRepository';
 
 const ActionSchema = z.enum(['accepted', 'rejected']);
 
-export async function POST(
-    req: NextRequest,
-    context: { params: Record<string, string> }
-) {
-    const requestId = Number(context.params.requestId);
-    const action = context.params.action;
-
-    if (!requestId || isNaN(requestId)) {
-        return NextResponse.json({ error: '不正な requestId です' }, { status: 400 });
-    }
-
-    if (!ActionSchema.safeParse(action).success) {
-        return NextResponse.json({ error: '不正なアクションです' }, { status: 400 });
-    }
-
-    const body = await req.json();
-    const matchMessage: string | null = body.match_message ?? null;
-
+export async function POST(req: NextRequest) {
     try {
+        const url = new URL(req.url);
+        const pathSegments = url.pathname.split('/');
+
+        // URL例: /api/requests/123/accepted
+        const requestIdStr = pathSegments[pathSegments.length - 2]; // requestId
+        const action = pathSegments[pathSegments.length - 1]; // action
+
+        const requestId = Number(requestIdStr);
+        if (!requestId || isNaN(requestId)) {
+            return NextResponse.json({ error: '不正な requestId です' }, { status: 400 });
+        }
+
+        if (!ActionSchema.safeParse(action).success) {
+            return NextResponse.json({ error: '不正なアクションです' }, { status: 400 });
+        }
+
+        const body = await req.json();
+        const matchMessage: string | null = body.match_message ?? null;
+
         // リクエストステータス更新
         await RequestRepository.updateRequestStatus(requestId, action as 'accepted' | 'rejected');
 
