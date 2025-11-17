@@ -7,7 +7,7 @@ import { RequestRepository } from '@/repositories/RequestRepository';
 import { UserActivityRepository } from '@/repositories/UserActivityRepository';
 import { SnsNotificationsRepository } from '@/repositories/SnsNotificationsRepository';
 
-export async function GET(req: NextRequest) {
+export async function GET() {
     try {
         // セッション認証
         const authResult = await verifySessionFromRequest();

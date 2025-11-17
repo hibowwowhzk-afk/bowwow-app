@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { UserRepository } from '@/repositories/UserRepository';
 import { verifySessionFromRequest } from '@/lib/firebase-session';
 
-export async function POST(req: NextRequest) {
+export async function POST() {
     try {
         // セッション認証関数
         const authResult = await verifySessionFromRequest();

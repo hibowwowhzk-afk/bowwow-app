@@ -6,6 +6,7 @@ export type PostRow = {
     post_id: number;
     user_id: string;
     message: string;
+    created_at: Date;
     age: number;
     date: string; // DB の型に合わせて string or Date
     display_name: string;

@@ -5,12 +5,9 @@ import { MatchesRepository } from '@/repositories/MatchesRepository';
 
 const ActionSchema = z.enum(['accepted', 'rejected']);
 
-export async function POST(
-    req: NextRequest,
-    { params }: { params: { requestId: string; action: string } }
-) {
-    const requestId = Number(params.requestId);
-    const action = params.action;
+export async function POST(req: NextRequest, context: { params: { requestId: string; action: string } }) {
+    const requestId = Number(context.params.requestId);
+    const action = context.params.action;
 
     if (!requestId || isNaN(requestId)) {
         return NextResponse.json({ error: '不正な requestId です' }, { status: 400 });
@@ -20,12 +17,10 @@ export async function POST(
         return NextResponse.json({ error: '不正なアクションです' }, { status: 400 });
     }
 
-    // POSTのbodyからJSONをパースして一言メッセージを取得
     const body = await req.json();
     const matchMessage: string | null = body.match_message ?? null;
 
     try {
-        // ステータス更新
         await RequestRepository.updateRequestStatus(requestId, action as 'accepted' | 'rejected');
 
         if (action === 'accepted') {

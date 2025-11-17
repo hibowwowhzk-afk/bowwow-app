@@ -5,7 +5,7 @@ import { verifySessionFromRequest } from '@/lib/firebase-session';
 import { PostRepository, type PostRow } from '@/repositories/PostRepository';
 import { UserRepository } from '@/repositories/UserRepository';
 
-export async function GET(req: NextRequest) {
+export async function GET() {
     try {
         const authResult = await verifySessionFromRequest();
         if ('error' in authResult) {
