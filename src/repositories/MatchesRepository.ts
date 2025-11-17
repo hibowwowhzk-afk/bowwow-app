@@ -120,9 +120,9 @@ export class MatchesRepository {
         ]);
     }
 
-    static async findMatchIdAndToUser(matchId: number): Promise<{ match_id: number; to_user_id: number } | null> {
+    static async findMatchIdAndToUser(matchId: number): Promise<{ match_id: number; to_user_id: number; from_user_id: number} | null> {
         const [rows] = await db.execute<RowDataPacket[]>(
-            `SELECT id AS match_id, to_user_id FROM matches WHERE id = ? LIMIT 1`,
+            `SELECT id AS match_id, from_user_id, to_user_id FROM matches WHERE id = ? LIMIT 1`,
             [matchId]
         );
     
@@ -131,6 +131,7 @@ export class MatchesRepository {
         const row = rows[0];
         return {
             match_id: Number(row.match_id),
+            from_user_id: Number(row. from_user_id),
             to_user_id: Number(row.to_user_id),
         };
     }

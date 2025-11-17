@@ -2,6 +2,8 @@
 import { NextResponse } from 'next/server';
 import { verifySessionFromRequest } from '@/lib/firebase-session';
 import { UserRepository } from '@/repositories/UserRepository';
+import { MatchesRepository } from '@/repositories/MatchesRepository';
+import { SnsNotificationsRepository } from '@/repositories/SnsNotificationsRepository';
 import { RequestRepository } from '@/repositories/RequestRepository';
 import { PostRepository } from '@/repositories/PostRepository';
 
@@ -9,7 +11,7 @@ export async function GET(req: Request) {
     try {
         const url = new URL(req.url);
         const pathSegments = url.pathname.split('/');
-        const matchIdStr = pathSegments[pathSegments.length - 1]; // 最後のセグメント
+        const matchIdStr = pathSegments[pathSegments.length - 2];
         if (!matchIdStr) {
             return NextResponse.json({ error: 'matchId が指定されていません' }, { status: 400 });
         }
@@ -26,25 +28,50 @@ export async function GET(req: Request) {
             return NextResponse.json({ error: 'ユーザー情報が見つかりません' }, { status: 404 });
         }
 
-        // matchId を使った処理
-        const requestMessageInfo = await RequestRepository.getRequestDetailById(matchId);
-        const postId = requestMessageInfo?.post_id;
+        // マッチングメッセージ取得
+        const matchingMessageInfo = await MatchesRepository.getMatchDetail(matchId);
+        if (!matchingMessageInfo) {
+            return NextResponse.json({ error: 'マッチ情報が見つかりません' }, { status: 404 });
+        }
 
-        const postInfo = postId ? await PostRepository.getPostDetailById(postId) : null;
-        if (!postInfo) {
-            return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+        // DM送信メッセージ取得
+        const dmMessageInfo = await SnsNotificationsRepository.getByMatchId(matchId);
+
+        // リクエストメッセージ取得（matchingMessageInfo が null の場合は取得しない）
+        let requestMessageInfo = null;
+        if (matchingMessageInfo.request_id) {
+            requestMessageInfo = await RequestRepository.getRequestDetailById(matchingMessageInfo.request_id);
+        }
+
+        // ポスト情報取得（requestMessageInfo が null の場合は取得しない）
+        let postInfo = null;
+        if (requestMessageInfo?.post_id) {
+            postInfo = await PostRepository.getPostDetailById(requestMessageInfo.post_id);
         }
 
         return NextResponse.json({
             self_user_id: user.user_id,
-            post_message: postInfo.message,
-            post_date: postInfo.date,
-            post_images: postInfo.post_images?.map(img => img.image_url) ?? [],
-            post_user_id: postInfo.user_id,
-            post_created_at: postInfo.created_at,
+
+            // ---- ポスト情報 ----
+            post_message: postInfo?.message ?? null,
+            post_date: postInfo?.date ?? null,
+            post_images: postInfo?.post_images?.map(img => img.image_url) ?? [],
+            post_user_id: postInfo?.user_id ?? null,
+            post_created_at: postInfo?.created_at ?? null,
+
+            // ---- リクエスト ----
             request_message: requestMessageInfo?.request_message ?? null,
             request_from_user_id: requestMessageInfo?.from_user_id ?? null,
             request_created_at: requestMessageInfo?.request_created_at ?? null,
+
+            // ---- マッチング ----
+            match_message: matchingMessageInfo.match_message ?? null,
+            match_from_user_id: matchingMessageInfo.from_user_id ?? null,
+
+            // ---- DM ----
+            dm_message: dmMessageInfo?.message ?? null,
+            dm_from_user_id: dmMessageInfo?.from_user_id ?? null,
+            dm_sent_at: dmMessageInfo?.sent_at ?? null,
         });
     } catch (err) {
         console.error(err);

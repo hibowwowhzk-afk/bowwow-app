@@ -14,7 +14,6 @@ export async function POST(req: NextRequest) {
         // URL例: /api/requests/123/accepted
         const requestIdStr = pathSegments[pathSegments.length - 2]; // requestId
         const action = pathSegments[pathSegments.length - 1]; // action
-
         const requestId = Number(requestIdStr);
         if (!requestId || isNaN(requestId)) {
             return NextResponse.json({ error: '不正な requestId です' }, { status: 400 });

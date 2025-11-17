@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     try {
         const url = new URL(req.url);
         const pathSegments = url.pathname.split('/');
-        const matchIdStr = pathSegments[pathSegments.length - 2]; // [matchId] の位置
+        const matchIdStr = pathSegments[pathSegments.length - 2];
         if (!matchIdStr) {
             return NextResponse.json({ error: 'matchId が指定されていません' }, { status: 400 });
         }
@@ -39,11 +39,20 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'マッチが見つかりません' }, { status: 404 });
         }
 
+        let dmFromUserId;
+        let dmToUserId;
+        if(match.from_user_id == user.user_id) {
+            dmFromUserId = match.from_user_id;
+            dmToUserId = match.to_user_id;
+        } else {
+            dmFromUserId = match.to_user_id;
+            dmToUserId = match.from_user_id;      
+        }
         // 通知登録
         await SnsNotificationsRepository.create({
             match_id: match.match_id,
-            from_user_id: user.user_id,
-            to_user_id: match.to_user_id,
+            from_user_id: dmFromUserId,
+            to_user_id: dmToUserId,
             message,
         });
 

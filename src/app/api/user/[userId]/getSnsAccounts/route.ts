@@ -10,7 +10,7 @@ export async function GET(req: Request) {
         const url = new URL(req.url);
         const pathSegments = url.pathname.split('/');
         // 例: /api/user/123/getSnsAccounts
-        const userId = pathSegments[pathSegments.length - 1];
+        const userId = pathSegments[pathSegments.length - 2];
         if (!userId) {
             return NextResponse.json({ error: 'userId が指定されていません' }, { status: 400 });
         }

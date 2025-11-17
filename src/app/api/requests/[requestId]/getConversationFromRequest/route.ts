@@ -25,7 +25,7 @@ export async function GET(req: Request) {
         const url = new URL(req.url);
         const pathSegments = url.pathname.split('/');
         // 例: /api/matchings/123/getConversationFromMatching
-        const requestIdStr = pathSegments[pathSegments.length - 1]; 
+        const requestIdStr = pathSegments[pathSegments.length - 2]; 
         const requestId = Number(requestIdStr);
         if (!requestId || isNaN(requestId)) {
             return NextResponse.json({ error: '不正な requestId です' }, { status: 400 });
