@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { UserRepository } from '@/repositories/UserRepository';
 import { verifySessionFromRequest } from '@/lib/firebase-session';
 
-export async function GET(req: Request, context: { params: { userId: string } }) {
+export async function GET(req: Request, context: { params: Record<string, string> }) {
     const userId = context.params.userId;
 
     // セッション認証チェック

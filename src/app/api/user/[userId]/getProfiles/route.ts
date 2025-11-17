@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { UserRepository } from '@/repositories/UserRepository';
 import { verifySessionFromRequest } from '@/lib/firebase-session';
 
-export async function GET(req: Request, context: { params: { userId: string } }) {
+export async function GET(req: Request, context: { params: Record<string, string> }) {
     try {
         const authResult = await verifySessionFromRequest();
         if ('error' in authResult) {
@@ -21,6 +21,12 @@ export async function GET(req: Request, context: { params: { userId: string } })
         }
 
         const profile = await UserRepository.findProfileByUserId(userId);
+        if (!profile) {
+            return NextResponse.json(
+                { error: 'ユーザープロフィールが見つかりません' },
+                { status: 404 }
+            );
+        }
 
         return NextResponse.json({ profile }, { status: 200 });
     } catch (err) {

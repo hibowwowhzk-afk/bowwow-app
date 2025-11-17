@@ -1,3 +1,5 @@
+// src/app/api/requests/[requestId]/[action]/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { RequestRepository } from '@/repositories/RequestRepository';
@@ -5,7 +7,10 @@ import { MatchesRepository } from '@/repositories/MatchesRepository';
 
 const ActionSchema = z.enum(['accepted', 'rejected']);
 
-export async function POST(req: NextRequest, context: { params: { requestId: string; action: string } }) {
+export async function POST(
+    req: NextRequest,
+    context: { params: Record<string, string> }
+) {
     const requestId = Number(context.params.requestId);
     const action = context.params.action;
 
@@ -21,8 +26,10 @@ export async function POST(req: NextRequest, context: { params: { requestId: str
     const matchMessage: string | null = body.match_message ?? null;
 
     try {
+        // リクエストステータス更新
         await RequestRepository.updateRequestStatus(requestId, action as 'accepted' | 'rejected');
 
+        // 承認の場合のみマッチ作成
         if (action === 'accepted') {
             const request = await RequestRepository.getRequestById(requestId);
 

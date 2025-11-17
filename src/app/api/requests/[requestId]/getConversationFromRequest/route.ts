@@ -1,11 +1,12 @@
 // src/app/api/matchings/[matchId]/getConversationFromMatching/route.ts
+
 import { NextResponse } from 'next/server';
 import { verifySessionFromRequest } from '@/lib/firebase-session';
 import { UserRepository } from '@/repositories/UserRepository';
 import { RequestRepository } from '@/repositories/RequestRepository';
 import { PostRepository } from '@/repositories/PostRepository';
 
-export async function GET(req: Request, context: { params: { requestId: string } }) {
+export async function GET(req: Request, context: { params: Record<string, string> }) {
     try {
         const authResult = await verifySessionFromRequest();
         if ('error' in authResult) {
@@ -26,17 +27,26 @@ export async function GET(req: Request, context: { params: { requestId: string }
         }
         const selfUserId = user.user_id;
 
-        const requestId = Number(context.params.requestId);
+        const requestIdStr = context.params.requestId;
+        if (!requestIdStr) {
+            return NextResponse.json(
+                { error: 'requestId が指定されていません' },
+                { status: 400 }
+            );
+        }
+        const requestId = Number(requestIdStr);
+        if (isNaN(requestId)) {
+            return NextResponse.json(
+                { error: '不正な requestId です' },
+                { status: 400 }
+            );
+        }
 
         const requestMessageInfo = await RequestRepository.getRequestDetailById(requestId);
         const postId = requestMessageInfo?.post_id;
 
         // ---- ポスト情報 ----
-        let postInfo = null;
-        if (postId) {
-            postInfo = await PostRepository.getPostDetailById(postId);
-        }
-
+        const postInfo = postId ? await PostRepository.getPostDetailById(postId) : null;
         if (!postInfo) {
             return NextResponse.json(
                 { error: 'Post not found' },

@@ -5,7 +5,7 @@ import { SnsNotificationsRepository } from '@/repositories/SnsNotificationsRepos
 import { UserRepository } from '@/repositories/UserRepository';
 import { MatchesRepository } from '@/repositories/MatchesRepository';
 
-export async function POST(req: NextRequest, context: { params: { matchId: string } }) {
+export async function POST(req: NextRequest, context: { params: Record<string, string> }) {
     try {
         const authResult = await verifySessionFromRequest();
         if ('error' in authResult) {
@@ -23,7 +23,14 @@ export async function POST(req: NextRequest, context: { params: { matchId: strin
             );
         }
 
-        const matchId = Number(context.params.matchId);
+        const matchIdStr = context.params.matchId;
+        if (!matchIdStr) {
+            return NextResponse.json(
+                { error: 'matchId が指定されていません' },
+                { status: 400 }
+            );
+        }
+        const matchId = Number(matchIdStr);
         if (isNaN(matchId)) {
             return NextResponse.json(
                 { error: 'matchId が無効です' },
