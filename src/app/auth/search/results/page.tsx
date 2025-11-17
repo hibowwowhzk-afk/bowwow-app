@@ -9,6 +9,7 @@ type Post = {
     user_id: number;
     message: string;
     created_at: string;
+    date: string;
     user: {
         display_name: string;
         age: number;
@@ -56,7 +57,14 @@ export default function SearchResultsPage() {
                 const res = await fetch(`/api/posts/search?${params.toString()}`);
                 if (!res.ok) throw new Error('検索に失敗しました');
                 const data = await res.json();
-                setPosts(data);
+
+                // date を必ず string にする
+                const postsWithDate: Post[] = data.map((post: any) => ({
+                    ...post,
+                    date: post.date ?? post.created_at,
+                }));
+
+                setPosts(postsWithDate);
             } catch (e: any) {
                 setError(e.message);
             } finally {
