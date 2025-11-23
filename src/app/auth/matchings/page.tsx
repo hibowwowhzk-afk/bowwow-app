@@ -1,6 +1,6 @@
 // page.tsx
 import { Suspense } from "react";
-import MatchingsPageClient from "@/app/components/ui/MatchingsPageClient";
+import MatchingsPageClient from "@/app/auth/matchings/MatchingsPageClient";
 
 export default function Page() {
     return (
