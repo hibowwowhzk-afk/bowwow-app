@@ -1,4 +1,6 @@
 // components/PostCard.tsx
+'use client';
+
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Pagination } from "swiper/modules";
 import { Twitter, Instagram } from "lucide-react";
