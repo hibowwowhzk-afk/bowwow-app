@@ -39,7 +39,6 @@ export default function SearchPageClient() {
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
         const params = new URLSearchParams();
-
         if (ageFrom) params.set('ageFrom', ageFrom);
         if (ageTo) params.set('ageTo', ageTo);
         if (dateFrom) params.set('dateFrom', dateFrom);
@@ -134,10 +133,8 @@ export default function SearchPageClient() {
                             onChange={(e) => setDateFrom(e.target.value)}
                             disabled={isDateDisabled}
                             className={`border rounded px-3 py-2 w-full ${isDateDisabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
-                            title={isDateDisabled ? '「今すぐ」が選ばれているため入力できません' : ''}
                         />
                     </div>
-
                     <div className="flex flex-col flex-1 text-left">
                         <label htmlFor="dateTo" className="mb-1 font-semibold">日付（まで）</label>
                         <input
@@ -147,7 +144,6 @@ export default function SearchPageClient() {
                             onChange={(e) => setDateTo(e.target.value)}
                             disabled={isDateDisabled}
                             className={`border rounded px-3 py-2 w-full ${isDateDisabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
-                            title={isDateDisabled ? '「今すぐ」が選ばれているため入力できません' : ''}
                         />
                     </div>
                 </div>

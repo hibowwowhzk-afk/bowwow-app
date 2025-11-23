@@ -27,7 +27,6 @@ export default function SearchResultsPageClient() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // 検索条件を取得
     const ageFrom = searchParams.get('ageFrom') ?? '';
     const ageTo = searchParams.get('ageTo') ?? '';
     const dateFrom = searchParams.get('dateFrom') ?? '';
@@ -56,12 +55,10 @@ export default function SearchResultsPageClient() {
                 const res = await fetch(`/api/posts/search?${params.toString()}`);
                 if (!res.ok) throw new Error('検索に失敗しました');
                 const data = await res.json();
-
                 const postsWithDate: Post[] = data.map((post: any) => ({
                     ...post,
                     date: post.date ?? post.created_at,
                 }));
-
                 setPosts(postsWithDate);
             } catch (e: any) {
                 setError(e.message);
@@ -104,7 +101,6 @@ export default function SearchResultsPageClient() {
                 検索画面に戻る
             </button>
 
-            {/* 検索条件表示 */}
             <div className="mb-6 p-4 bg-gray-100 rounded border">
                 <h2 className="font-semibold mb-2">検索条件</h2>
                 <ul className="text-gray-700 space-y-1">
