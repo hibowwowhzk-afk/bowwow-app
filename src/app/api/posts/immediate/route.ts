@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
                     id: row.post_id,
                     user_id: row.user_id,
                     message: row.message,
-                    date: dateOnly, // ✅ T以降削除
+                    date: dateOnly,
                     user: {
                         display_name: row.display_name,
                         age: row.age,

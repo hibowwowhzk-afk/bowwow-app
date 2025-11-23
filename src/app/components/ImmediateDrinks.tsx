@@ -9,7 +9,7 @@ type Post = {
     id: number;
     user_id: number;
     message: string;
-    created_at: string;
+    date: string;
     user: {
         display_name: string;
         age: number;
