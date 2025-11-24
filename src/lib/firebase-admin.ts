@@ -1,9 +1,19 @@
 // lib/firebase-admin.ts
 
-// サーバー側でFirebase Admin SDKを初期化し、管理者権限で操作するための設定
-import { initializeApp, getApps, getApp } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-// Firebase Admin SDKの初期化
-const adminApp = !getApps().length ? initializeApp() : getApp();
-// 管理者権限の認証インスタンスをエクスポート
+import { initializeApp, getApps, getApp, cert } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
+
+const serviceAccount =
+    process.env.FIREBASE_SERVICE_ACCOUNT
+        ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+        : undefined;
+
+const adminApp = !getApps().length
+    ? initializeApp(
+          serviceAccount
+              ? { credential: cert(serviceAccount) }
+              : undefined
+      )
+    : getApp();
+
 export const adminAuth = getAuth(adminApp);
