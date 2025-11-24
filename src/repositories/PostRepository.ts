@@ -14,6 +14,7 @@ export type PostRow = {
     insta_username?: string | null;
     image_url?: string | null;
     image_order?: number | null;
+    is_immediate?: number | null;
 };
 
 export type PostSearchParams = {
@@ -254,6 +255,45 @@ export class PostRepository {
         return {
             ...base,
             post_images
+        };
+    }
+
+    /**
+     * 投稿詳細を取得（画像も含む）
+     */
+    static async findPostById(postId: number): Promise<PostRow | null> {
+        const [rows] = await db.execute<RowDataPacket[]>(`
+            SELECT 
+                p.id AS post_id,
+                p.user_id,
+                p.date,
+                p.message,
+                p.created_at,
+                p.is_immediate,
+                pi.image_url,
+                pi.\`order\` AS image_order
+            FROM posts p
+            LEFT JOIN post_images pi ON p.id = pi.post_id AND pi.order = 1
+            WHERE p.id = ?
+            LIMIT 1
+        `, [postId]);
+
+        if (!rows || rows.length === 0) return null;
+
+        const row = rows[0];
+        return {
+            post_id: row.post_id,
+            user_id: row.user_id,
+            message: row.message,
+            created_at: row.created_at,
+            is_immediate: row.is_immediate,
+            age: row.age,
+            date: row.date,
+            display_name: row.display_name,
+            x_username: row.x_username,
+            insta_username: row.insta_username,
+            image_url: row.image_url || null,
+            image_order: row.image_order || null,
         };
     }
 }

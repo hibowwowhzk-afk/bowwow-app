@@ -69,8 +69,7 @@ export default function LoginPage() {
         if (data.profile.is_profile_completed === 0) {
             router.push('/auth/register/profile');
         } else {
-            console.log("Profile completed, redirecting to dashboard.");
-            router.push('/auth/dashboard');
+            router.push('/auth/home');
         }
         } catch (err: any) {
         setError(err.message || 'ログイン処理中にエラーが発生しました');

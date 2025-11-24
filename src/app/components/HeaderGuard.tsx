@@ -4,7 +4,6 @@
 import { ReactNode } from 'react'
 import { usePathname } from 'next/navigation'  // 現在のパスを取得
 import HeaderWrapper from '@/app/components/HeaderWrapper'  // HeaderWrapperをインポート
-import BottomNav from '@/app/components/ui/BottomNav'  // BottomNavをインポート
 
 export default function HeaderGuard({ children }: { children: ReactNode }) {
     const pathname = usePathname()  // 現在のパスを取得
@@ -20,7 +19,6 @@ export default function HeaderGuard({ children }: { children: ReactNode }) {
         <div>
         {/* '/auth/*' のページでは HeaderWrapper と BottomNav を表示 */}
         <HeaderWrapper>{children}</HeaderWrapper>
-        <BottomNav />
         </div>
     )
 }

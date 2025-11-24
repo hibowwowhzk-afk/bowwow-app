@@ -91,7 +91,7 @@ export default function PostListPage() {
                                     </p>
 
                                     {/* 投稿メッセージ */}
-                                    <Link href={`/auth/posts/${post.id}`}>
+                                    <Link href={`/auth/posts/${post.id}/edit`}>
                                         <p className="text-gray-800 mt-1 font-medium line-clamp-2">
                                             {post.message}
                                         </p>

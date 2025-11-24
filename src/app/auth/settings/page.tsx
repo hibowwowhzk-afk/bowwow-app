@@ -19,12 +19,12 @@ export default function SettingsPage() {
             </li>
 
             {/* 他の設定項目を追加したい場合は以下に */}
-            <li>
+            {/* <li>
                 <a href="/settings/notifications" className="block p-4 bg-white shadow rounded-md hover:bg-blue-50 transition">
                 <div className="font-semibold text-blue-600">通知設定</div>
                 <div className="text-sm text-gray-500">通知のオン・オフを切り替えます。</div>
                 </a>
-            </li>
+            </li> */}
             </ul>
         </main>
         </div>
