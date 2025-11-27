@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
                     id: row.post_id,
                     user_id: row.user_id,
                     message: row.message,
-                    created_at: row.created_at,
+                    date: row.date,
                     user: {
                         display_name: row.display_name,
                         age: row.age,

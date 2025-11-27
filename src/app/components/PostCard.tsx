@@ -25,7 +25,7 @@ const noImageUrl =
 
 export const PostCard: React.FC<{ post: Post }> = ({ post }) => {
     const hasImages = post.images && post.images.length > 0;
-
+    console.log("検索:", JSON.stringify(post, null, 2));
     return (
         <li
             style={{
@@ -109,7 +109,7 @@ export const PostCard: React.FC<{ post: Post }> = ({ post }) => {
                 </p>
 
                 <small style={{ color: "#666" }}>
-                    合流希望日: {new Date(post.date + "T00:00:00+09:00").toLocaleDateString('ja-JP')}
+                    合流希望日: {new Date(post.date).toLocaleDateString('ja-JP')}
                 </small>
 
                 {/* SNSアイコン表示 */}

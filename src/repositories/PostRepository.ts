@@ -137,7 +137,7 @@ export class PostRepository {
                 p.id AS post_id,
                 p.user_id,
                 p.message,
-                p.created_at,
+                p.date,
                 u.display_name,
                 u.age,
                 u.x_username,
@@ -296,4 +296,41 @@ export class PostRepository {
             image_order: row.image_order || null,
         };
     }
+
+    /**
+     * 投稿の基本情報を更新
+     */
+    static async updatePostBasic(
+        postId: number,
+        data: { message: string; date: string; is_immediate: boolean }
+    ) {
+        const sql = `
+            UPDATE posts
+            SET message = ?, date = ?, is_immediate = ?, updated_at = NOW()
+            WHERE id = ?
+        `;
+        await db.execute(sql, [data.message, data.date, data.is_immediate ? 1 : 0, postId]);
+    }
+
+    /**
+     * 投稿に紐づく post_images を全取得
+     */
+    static async findPostImagesByPostId(postId: number): Promise<{ id: number; image_url: string }[]> {
+        const sql = `
+            SELECT id, image_url
+            FROM post_images
+            WHERE post_id = ?
+        `;
+        const [rows] = await db.execute<RowDataPacket[]>(sql, [postId]);
+        return rows.map(r => ({ id: r.id, image_url: r.image_url }));
+    }
+
+    /**
+     * post_images を ID で削除
+     */
+    static async deleteAllPostImages(id: number) {
+        const sql = `DELETE FROM post_images WHERE post_id = ?`;
+        await db.execute(sql, [id]);
+    }
+
 }

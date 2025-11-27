@@ -10,10 +10,11 @@ export default function CreatePostPage() {
     const [isImmediate, setIsImmediate] = useState(false);
     const [images, setImages] = useState<File[]>([]);
     const [error, setError] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const userAge = 28;
     const numPeople = 2;
-    const locationExample = '渋谷駅周辺';
+    const locationExample = '博多駅周辺';
     const exampleMessage = `例: 場所: ${locationExample}、人数: ${numPeople}人、年齢: 自分たち ${userAge}歳`;
 
     useEffect(() => {
@@ -30,7 +31,7 @@ export default function CreatePostPage() {
 
     const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            const filesArray = Array.from(e.target.files).slice(0, 2); // 最大2枚
+            const filesArray = Array.from(e.target.files).slice(0, 2);
             setImages(filesArray);
         }
     };
@@ -39,8 +40,12 @@ export default function CreatePostPage() {
         e.preventDefault();
         setError('');
 
+        if (isSubmitting) return;
+        setIsSubmitting(true);
+
         if (!message.trim()) {
             setError('メッセージは必須です');
+            setIsSubmitting(false);
             return;
         }
 
@@ -58,9 +63,11 @@ export default function CreatePostPage() {
 
             if (!res.ok) throw new Error(await res.text());
 
-            router.push('/auth/dashboard'); 
+            router.push('/auth/dashboard');
         } catch (e: any) {
             setError(e.message || '投稿に失敗しました');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -71,7 +78,6 @@ export default function CreatePostPage() {
             {error && <p className="text-red-500 mb-4">{error}</p>}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-                {/* 日付 */}
                 <div>
                     <label className="block mb-1 font-medium">日付</label>
                     <input
@@ -83,7 +89,6 @@ export default function CreatePostPage() {
                     />
                 </div>
 
-                {/* メッセージ */}
                 <div>
                     <label className="block mb-1 font-medium">メッセージ</label>
                     <p className="text-sm text-gray-500 mb-1">
@@ -100,7 +105,6 @@ export default function CreatePostPage() {
                     />
                 </div>
 
-                {/* 即時フラグ */}
                 <div className="flex items-center space-x-2">
                     <input
                         type="checkbox"
@@ -113,14 +117,12 @@ export default function CreatePostPage() {
                     </label>
                 </div>
 
-                {/* 画像アップロード */}
                 <div>
                     <label className="block mb-1 font-medium">画像（最大2枚）</label>
                     <p className="text-sm text-gray-500 mb-2">
                         添付ファイルは基本的に正方形で表示されます
                     </p>
 
-                    {/* ファイル選択ボタン */}
                     <label className="block w-full bg-gray-200 text-gray-700 py-3 text-center rounded-lg cursor-pointer hover:bg-gray-300 transition">
                         画像を選択
                         <input
@@ -129,11 +131,10 @@ export default function CreatePostPage() {
                             multiple
                             onChange={handleImageChange}
                             className="hidden"
-                            disabled={images.length >= 2} // 2枚で制限
+                            disabled={images.length >= 2}
                         />
                     </label>
 
-                    {/* プレビュー */}
                     {images.length > 0 && (
                         <div className="mt-2 flex gap-2 overflow-x-auto">
                             {images.map((img, idx) => (
@@ -143,7 +144,6 @@ export default function CreatePostPage() {
                                         alt={`preview-${idx}`}
                                         className="w-full h-full object-cover rounded"
                                     />
-                                    {/* 削除ボタン */}
                                     <button
                                         type="button"
                                         className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center"
@@ -157,12 +157,14 @@ export default function CreatePostPage() {
                     )}
                 </div>
 
-                {/* 送信ボタン */}
                 <button
                     type="submit"
-                    className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-xl shadow-md transition"
+                    disabled={isSubmitting}
+                    className={`w-full text-white font-semibold py-3 rounded-xl shadow-md transition
+                        ${isSubmitting ? 'bg-green-300 cursor-not-allowed opacity-50' : 'bg-green-500 hover:bg-green-600'}
+                    `}
                 >
-                    投稿する
+                    {isSubmitting ? '送信中...' : '投稿する'}
                 </button>
             </form>
         </main>

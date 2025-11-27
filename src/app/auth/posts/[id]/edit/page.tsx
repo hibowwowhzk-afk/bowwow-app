@@ -29,10 +29,11 @@ export default function EditPostPage() {
     const [images, setImages] = useState<File[]>([]);
     const [existingImages, setExistingImages] = useState<string[]>([]);
     const [deletedImages, setDeletedImages] = useState<string[]>([]);
+    const [imageChanged, setImageChanged] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // 初期データ取得
     useEffect(() => {
         const fetchPost = async () => {
             try {
@@ -42,8 +43,7 @@ export default function EditPostPage() {
 
                 setMessage(data.post.message || '');
                 setIsImmediate(data.post.is_immediate);
-
-                // 日付の初期セット
+console.log("取得データ:", JSON.stringify(data, null, 2));
                 let initialDate = '';
                 if (data.post.is_immediate || !data.post.date) {
                     const today = new Date();
@@ -60,7 +60,6 @@ export default function EditPostPage() {
                 }
                 setDate(initialDate);
 
-                // 既存画像
                 setExistingImages(data.post.post_images.map((img) => img.image_url));
             } catch (e: any) {
                 setError(e.message);
@@ -71,7 +70,6 @@ export default function EditPostPage() {
         fetchPost();
     }, [postId]);
 
-    // isImmediate が変更されたら日付を今日にする
     useEffect(() => {
         if (isImmediate) {
             const today = new Date();
@@ -86,20 +84,26 @@ export default function EditPostPage() {
         if (e.target.files) {
             const filesArray = Array.from(e.target.files).slice(0, 2);
             setImages(filesArray);
+            setImageChanged(true);
         }
     };
 
     const handleDeleteExistingImage = (url: string) => {
         setExistingImages(existingImages.filter((img) => img !== url));
         setDeletedImages([...deletedImages, url]);
+        setImageChanged(true);
     };
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError('');
 
+        if (isSubmitting) return;
+        setIsSubmitting(true);
+
         if (!message.trim()) {
             setError('メッセージは必須です');
+            setIsSubmitting(false);
             return;
         }
 
@@ -108,19 +112,26 @@ export default function EditPostPage() {
             formData.append('date', date);
             formData.append('message', message);
             formData.append('isImmediate', isImmediate ? '1' : '0');
+            formData.append('imageChanged', imageChanged ? '1' : '0');
             images.forEach((img) => formData.append('images', img));
             deletedImages.forEach((url) => formData.append('deletedImages[]', url));
 
-            const res = await fetch(`/api/posts/${postId}/edit`, {
+            const res = await fetch(`/api/posts/${postId}/updatePost`, {
                 method: 'POST',
                 body: formData,
             });
 
             if (!res.ok) throw new Error(await res.text());
 
-            router.push('/auth/posts');
+            // 成功アラート表示
+            alert('投稿が更新されました！');
+
+            // リストページへ遷移
+            router.push('/auth/posts/list');
         } catch (e: any) {
             setError(e.message || '更新に失敗しました');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -170,6 +181,7 @@ export default function EditPostPage() {
 
                 <div>
                     <label className="block mb-1 font-medium">画像（最大2枚）</label>
+
                     <label className="block w-full bg-gray-200 text-gray-700 py-3 text-center rounded-lg cursor-pointer hover:bg-gray-300 transition">
                         画像を選択
                         <input
@@ -219,9 +231,12 @@ export default function EditPostPage() {
 
                 <button
                     type="submit"
-                    className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-xl shadow-md transition"
+                    disabled={isSubmitting}
+                    className={`w-full text-white font-semibold py-3 rounded-xl shadow-md transition
+                        ${isSubmitting ? 'bg-green-300 cursor-not-allowed opacity-50' : 'bg-green-500 hover:bg-green-600'}
+                    `}
                 >
-                    更新する
+                    {isSubmitting ? '更新中...' : '更新する'}
                 </button>
             </form>
         </main>

@@ -7,7 +7,7 @@ import Link from 'next/link';
 export default function DashboardPage() {
     return (
         <div>
-            <main className="p-6">
+            <main className="p-6 max-w-lg mx-auto">
                 {/* 左側に検索ボタンを配置 */}
                 <div className="flex justify-start mb-4">
                     <Link href="/auth/search">

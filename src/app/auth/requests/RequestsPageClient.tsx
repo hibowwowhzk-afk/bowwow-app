@@ -1,8 +1,9 @@
-'use client';
-import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import ConversationModalFromRequest from '@/app/components/ui/ConversationModalFromRequest';
-import ProfileModal from '@/app/components/ui/ProfileModal';
+"use client";
+
+import React, { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import ConversationModalFromRequest from "@/app/components/ui/ConversationModalFromRequest";
+import ProfileModal from "@/app/components/ui/ProfileModal";
 
 type Request = {
     request_id: number;
@@ -15,7 +16,7 @@ type Request = {
     post_date: string;
 };
 
-type ActionStatus = 'accepted' | 'rejected' | null;
+type ActionStatus = "accepted" | "rejected" | null;
 
 type ApproveModalProps = {
     isOpen: boolean;
@@ -26,7 +27,7 @@ type ApproveModalProps = {
 
 const ApproveModal: React.FC<ApproveModalProps> = ({
     isOpen,
-    initialMessage = '',
+    initialMessage = "",
     onClose,
     onSubmit,
 }) => {
@@ -80,7 +81,7 @@ export default function RequestsPageClient() {
     const [requestsFromOthers, setRequestsFromOthers] = useState<Request[]>([]);
     const [actionStatuses, setActionStatuses] = useState<Record<number, ActionStatus>>({});
     const [error, setError] = useState<string | null>(null);
-    const [tab, setTab] = useState<'fromMe' | 'fromOthers'>('fromOthers');
+    const [tab, setTab] = useState<"fromMe" | "fromOthers">("fromOthers");
     const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
     const [modalRequestId, setModalRequestId] = useState<number | null>(null);
     const [highlightIds, setHighlightIds] = useState<number[]>([]);
@@ -91,7 +92,7 @@ export default function RequestsPageClient() {
 
     useEffect(() => {
         setHighlightIds(
-            searchParams.get('highlight')?.split(',').map((id) => Number(id)) || []
+            searchParams.get("highlight")?.split(",").map((id) => Number(id)) || []
         );
     }, [searchParams]);
 
@@ -99,8 +100,8 @@ export default function RequestsPageClient() {
         async function fetchRequests() {
             try {
                 const [resMe, resOthers] = await Promise.all([
-                    fetch('/api/requests/getFromMe'),
-                    fetch('/api/requests/getFromOthers'),
+                    fetch("/api/requests/getFromMe"),
+                    fetch("/api/requests/getFromOthers"),
                 ]);
                 const [dataMe, dataOthers] = await Promise.all([
                     resMe.json(),
@@ -108,15 +109,15 @@ export default function RequestsPageClient() {
                 ]);
                 if (resMe.ok) setRequestsFromMe(dataMe.requestList || []);
                 if (resOthers.ok) setRequestsFromOthers(dataOthers.requestList || []);
-                if (!resMe.ok || !resOthers.ok) throw new Error('リクエスト取得失敗');
+                if (!resMe.ok || !resOthers.ok) throw new Error("リクエスト取得失敗");
             } catch {
-                setError('リクエスト情報の取得に失敗しました');
+                setError("リクエスト情報の取得に失敗しました");
             }
         }
         fetchRequests();
     }, []);
 
-    const currentList = tab === 'fromMe' ? requestsFromMe : requestsFromOthers;
+    const currentList = tab === "fromMe" ? requestsFromMe : requestsFromOthers;
 
     function openApproveModal(requestId: number) {
         setModalRequestId(requestId);
@@ -126,16 +127,16 @@ export default function RequestsPageClient() {
     async function submitAction(message: string) {
         if (modalRequestId === null) return;
 
-        setActionStatuses((prev) => ({ ...prev, [modalRequestId]: 'accepted' }));
+        setActionStatuses((prev) => ({ ...prev, [modalRequestId]: "accepted" }));
         setIsApproveModalOpen(false);
 
         try {
             const res = await fetch(`/api/requests/${modalRequestId}/accepted`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ match_message: message || null }),
             });
-            if (!res.ok) throw new Error('処理に失敗しました');
+            if (!res.ok) throw new Error("処理に失敗しました");
         } catch (e) {
             alert((e as Error).message);
             setActionStatuses((prev) => ({ ...prev, [modalRequestId]: null }));
@@ -143,11 +144,13 @@ export default function RequestsPageClient() {
     }
 
     async function rejectAction(requestId: number) {
-        setActionStatuses((prev) => ({ ...prev, [requestId]: 'rejected' }));
+        setActionStatuses((prev) => ({ ...prev, [requestId]: "rejected" }));
 
         try {
-            const res = await fetch(`/api/requests/${requestId}/rejected`, { method: 'POST' });
-            if (!res.ok) throw new Error('処理に失敗しました');
+            const res = await fetch(`/api/requests/${requestId}/rejected`, {
+                method: "POST",
+            });
+            if (!res.ok) throw new Error("処理に失敗しました");
         } catch (e) {
             alert((e as Error).message);
             setActionStatuses((prev) => ({ ...prev, [requestId]: null }));
@@ -155,7 +158,7 @@ export default function RequestsPageClient() {
     }
 
     function openProfile(user: Request) {
-        const otherUserId = tab === 'fromOthers' ? user.from_user_id : user.to_user_id;
+        const otherUserId = tab === "fromOthers" ? user.from_user_id : user.to_user_id;
         setOpenProfileId(otherUserId);
     }
 
@@ -164,17 +167,25 @@ export default function RequestsPageClient() {
             <h1 className="text-2xl font-semibold mb-6">リクエストリスト</h1>
             {error && <p className="text-red-500 mb-4">{error}</p>}
 
-            {/* タブ切り替え */}
+            {/* タブ */}
             <div className="flex mb-4 border-b border-gray-300">
                 <button
-                    onClick={() => setTab('fromMe')}
-                    className={`flex-1 py-2 text-center ${tab === 'fromMe' ? 'border-b-2 border-blue-600 font-bold' : 'text-gray-500'}`}
+                    onClick={() => setTab("fromMe")}
+                    className={`flex-1 py-2 text-center ${
+                        tab === "fromMe"
+                            ? "border-b-2 border-blue-600 font-bold"
+                            : "text-gray-500"
+                    }`}
                 >
                     自分から
                 </button>
                 <button
-                    onClick={() => setTab('fromOthers')}
-                    className={`flex-1 py-2 text-center ${tab === 'fromOthers' ? 'border-b-2 border-blue-600 font-bold' : 'text-gray-500'}`}
+                    onClick={() => setTab("fromOthers")}
+                    className={`flex-1 py-2 text-center ${
+                        tab === "fromOthers"
+                            ? "border-b-2 border-blue-600 font-bold"
+                            : "text-gray-500"
+                    }`}
                 >
                     相手から
                 </button>
@@ -188,83 +199,96 @@ export default function RequestsPageClient() {
                     currentList.map((user) => {
                         const isHighlighted = highlightIds.includes(user.request_id);
                         const status = actionStatuses[user.request_id];
-                        const isFromOthers = tab === 'fromOthers';
+                        const isFromOthers = tab === "fromOthers";
 
                         return (
                             <li
                                 key={user.request_id}
-                                className={`flex flex-col items-start p-4 border rounded-lg shadow-sm hover:bg-gray-50 ${isHighlighted ? 'border-blue-500 bg-blue-50' : 'bg-white'}`}
+                                className={`flex flex-col p-4 border rounded-lg shadow-sm ${
+                                    isHighlighted ? "border-blue-500 bg-blue-50" : "bg-white"
+                                }`}
                             >
                                 {/* アイコン */}
-                                <div className="flex items-start mb-3">
-                                    <div className="w-28 h-28 rounded-full overflow-hidden flex-shrink-0">
+                                <div className="w-full max-w-xs mx-auto mb-4">
+                                    <div className="w-full aspect-square overflow-hidden rounded-lg shadow">
                                         {user.user_profile_image ? (
-                                            <img src={user.user_profile_image} alt={user.user_display_name} className="w-full h-full object-cover" />
+                                            <img
+                                                src={user.user_profile_image}
+                                                alt={user.user_display_name}
+                                                className="w-full h-full object-cover"
+                                            />
                                         ) : (
-                                            <div className="w-full h-full bg-gray-300 flex items-center justify-center text-white font-semibold text-3xl">
+                                            <div className="w-full h-full bg-gray-300 flex items-center justify-center text-white font-semibold text-4xl">
                                                 {user.user_display_name[0]}
                                             </div>
                                         )}
                                     </div>
-
-                                    <div className="flex-1 flex flex-col justify-between ml-4">
-                                        <div>
-                                            <h2 className="text-lg font-medium">{user.user_display_name}</h2>
-                                            <span className="text-sm text-gray-500 mt-1 block">
-                                                合流希望日: {new Date(user.post_date).toLocaleDateString('ja-JP')}
-                                            </span>
-                                        </div>
-
-                                        <div className="flex flex-col space-y-2 mt-3">
-                                            <button
-                                                className="w-full px-4 py-2 text-base bg-blue-500 text-white rounded hover:bg-blue-600"
-                                                onClick={() => setOpenConversationId(user.request_id)}
-                                            >
-                                                やりとり
-                                            </button>
-                                            <button
-                                                className="w-full px-4 py-2 text-base bg-gray-500 text-white rounded hover:bg-gray-600"
-                                                onClick={() => openProfile(user)}
-                                            >
-                                                プロフィール
-                                            </button>
-                                        </div>
-                                    </div>
                                 </div>
 
-                                {/* 送信日時 */}
+                                {/* やりとり・プロフィール (縦並び) */}
+                                <div className="flex flex-col space-y-2 mb-4">
+                                    <button
+                                        className="w-full px-4 py-2 text-base bg-blue-500 text-white rounded hover:bg-blue-600"
+                                        onClick={() => setOpenConversationId(user.request_id)}
+                                    >
+                                        やりとり
+                                    </button>
+                                    <button
+                                        className="w-full px-4 py-2 text-base bg-gray-500 text-white rounded hover:bg-gray-600"
+                                        onClick={() => openProfile(user)}
+                                    >
+                                        プロフィール
+                                    </button>
+                                </div>
+
+                                {/* 日時 */}
                                 <div className="text-sm text-gray-500 mb-2">
-                                    {tab === 'fromOthers' ? '受信日時' : '送信日時'}: {new Date(user.request_created_at).toLocaleString('ja-JP')}
+                                    {isFromOthers ? "受信日時" : "送信日時"}:
+                                    {" "}{new Date(user.request_created_at).toLocaleString("ja-JP")}
                                 </div>
 
                                 {/* メッセージ */}
                                 <div className="mb-3">
-                                    <p className="text-sm text-blue-800 font-medium">リクエストメッセージ:</p>
+                                    <p className="text-sm text-blue-800 font-medium">
+                                        リクエストメッセージ:
+                                    </p>
                                     <p className="text-sm text-gray-700">{user.request_message}</p>
                                 </div>
 
-                                {/* 承諾・拒否ボタン */}
+                                {/* 承諾・拒否（完全縦並び） */}
                                 {isFromOthers && (
-                                    <div className="flex space-x-2">
+                                    <div className="flex flex-col space-y-2">
                                         <button
                                             onClick={() => openApproveModal(user.request_id)}
                                             disabled={!!status}
-                                            className={`w-full px-4 py-2 rounded font-semibold text-white ${status === 'accepted' ? 'bg-green-600 cursor-default' : 'bg-green-500 hover:bg-green-600'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                                            className={`w-full px-4 py-2 rounded font-semibold text-white ${
+                                                status === "accepted"
+                                                    ? "bg-green-600 cursor-default"
+                                                    : "bg-green-500 hover:bg-green-600"
+                                            } disabled:opacity-50`}
                                         >
-                                            {status === 'accepted' ? '承諾済み' : '承諾'}
+                                            {status === "accepted" ? "承諾済み" : "承諾"}
                                         </button>
+
                                         <button
                                             onClick={() => rejectAction(user.request_id)}
                                             disabled={!!status}
-                                            className={`w-full px-4 py-2 rounded font-semibold text-white ${status === 'rejected' ? 'bg-gray-400 cursor-default' : 'bg-gray-600 hover:bg-gray-700'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                                            className={`w-full px-4 py-2 rounded font-semibold text-white ${
+                                                status === "rejected"
+                                                    ? "bg-gray-400 cursor-default"
+                                                    : "bg-gray-600 hover:bg-gray-700"
+                                            } disabled:opacity-50`}
                                         >
-                                            {status === 'rejected' ? '拒否済み' : '拒否'}
+                                            {status === "rejected" ? "拒否済み" : "拒否"}
                                         </button>
                                     </div>
                                 )}
 
                                 {openConversationId === user.request_id && (
-                                    <ConversationModalFromRequest requestId={user.request_id} onClose={() => setOpenConversationId(null)} />
+                                    <ConversationModalFromRequest
+                                        requestId={user.request_id}
+                                        onClose={() => setOpenConversationId(null)}
+                                    />
                                 )}
                             </li>
                         );
@@ -272,8 +296,17 @@ export default function RequestsPageClient() {
                 )}
             </ul>
 
-            <ApproveModal isOpen={isApproveModalOpen} onClose={() => setIsApproveModalOpen(false)} onSubmit={submitAction} />
-            <ProfileModal userId={openProfileId ?? 0} isOpen={!!openProfileId} onClose={() => setOpenProfileId(null)} />
+            <ApproveModal
+                isOpen={isApproveModalOpen}
+                onClose={() => setIsApproveModalOpen(false)}
+                onSubmit={submitAction}
+            />
+
+            <ProfileModal
+                userId={openProfileId ?? 0}
+                isOpen={!!openProfileId}
+                onClose={() => setOpenProfileId(null)}
+            />
         </div>
     );
 }

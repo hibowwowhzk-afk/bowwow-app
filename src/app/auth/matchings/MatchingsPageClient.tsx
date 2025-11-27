@@ -129,8 +129,9 @@ export default function MatchingsPageClient() {
                                     key={user.match_id}
                                     className={`flex flex-col p-4 border rounded-lg shadow-sm hover:bg-gray-50 ${user.match_id === highlightIdNum ? 'border-red-500 bg-red-50' : 'bg-white'}`}
                                 >
-                                    <div className="flex items-start mb-3">
-                                        <div className="w-28 h-28 rounded-full overflow-hidden flex-shrink-0">
+                                    {/* 画像：正方形大きめ */}
+                                    <div className="w-full max-w-xs mx-auto mb-4">
+                                        <div className="w-full aspect-square overflow-hidden rounded-lg shadow">
                                             {user.user_profile_image ? (
                                                 <img
                                                     src={user.user_profile_image}
@@ -138,62 +139,61 @@ export default function MatchingsPageClient() {
                                                     className="w-full h-full object-cover"
                                                 />
                                             ) : (
-                                                <div className="w-full h-full bg-gray-300 flex items-center justify-center text-white font-semibold text-3xl">
+                                                <div className="w-full h-full bg-gray-300 flex items-center justify-center text-white font-semibold text-4xl">
                                                     {user.user_display_name[0]}
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="flex-1 flex flex-col justify-between ml-4">
-                                            <h2 className="text-lg font-medium">{user.user_display_name}</h2>
-                                            <span className="text-sm text-gray-500 mt-1 block">
-                                                合流希望日: {new Date(user.post_date).toLocaleDateString('ja-JP')}
-                                            </span>
-                                            <div className="flex flex-col space-y-2 mt-3">
-                                                <button
-                                                    onClick={() => setOpenConversationId(user.match_id)}
-                                                    className="px-4 py-2 text-base bg-blue-500 text-white rounded hover:bg-blue-600"
-                                                >
-                                                    やりとり
-                                                </button>
-                                                <button
-                                                    onClick={() => {
-                                                        const otherUserId =
-                                                            activeTab === 'fromOthers'
-                                                                ? user.from_user_id
-                                                                : user.to_user_id;
-                                                        setSelectedUserId(otherUserId);
-                                                        setIsProfileModalOpen(true);
-                                                    }}
-                                                    className="px-4 py-2 text-base bg-gray-500 text-white rounded hover:bg-gray-600"
-                                                >
-                                                    プロフィール
-                                                </button>
-                                                <button
-                                                    onClick={() => handleShowSNS(user)}
-                                                    disabled={isLoading}
-                                                    className={`px-4 py-2 text-base rounded ${isLoading ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-green-500 text-white hover:bg-green-600'}`}
-                                                >
-                                                    {isLoading ? '読み込み中...' : 'SNSアカウント表示'}
-                                                </button>
-                                                <button
-                                                    onClick={() => setShowDMModal(user.match_id)}
-                                                    className="px-4 py-2 text-base bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                                                >
-                                                    DM送信を相手に知らせる
-                                                </button>
-                                            </div>
-                                        </div>
+                                    </div>
+
+                                    {/* ボタン縦並び */}
+                                    <div className="flex flex-col space-y-2">
+                                        <button
+                                            onClick={() => setOpenConversationId(user.match_id)}
+                                            className="w-full px-4 py-2 text-base bg-blue-500 text-white rounded hover:bg-blue-600"
+                                        >
+                                            やりとり
+                                        </button>
+
+                                        <button
+                                            onClick={() => {
+                                                const otherUserId =
+                                                    activeTab === 'fromOthers'
+                                                        ? user.from_user_id
+                                                        : user.to_user_id;
+                                                setSelectedUserId(otherUserId);
+                                                setIsProfileModalOpen(true);
+                                            }}
+                                            className="w-full px-4 py-2 text-base bg-gray-500 text-white rounded hover:bg-gray-600"
+                                        >
+                                            プロフィール
+                                        </button>
+
+                                        <button
+                                            onClick={() => handleShowSNS(user)}
+                                            disabled={isLoading}
+                                            className={`w-full px-4 py-2 text-base rounded ${
+                                                isLoading ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-green-500 text-white hover:bg-green-600'
+                                            }`}
+                                        >
+                                            {isLoading ? '読み込み中...' : 'SNSアカウント表示'}
+                                        </button>
+
+                                        <button
+                                            onClick={() => setShowDMModal(user.match_id)}
+                                            className="w-full px-4 py-2 text-base bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                                        >
+                                            DM送信を相手に知らせる
+                                        </button>
                                     </div>
 
                                     {user.match_message && (
-                                        <div className="flex justify-between mt-2">
-                                            <div>
-                                                <p className="text-sm text-gray-500">
-                                                    {activeTab === 'fromMe' ? '送信日時' : '受信日時'}: {formatDateSafe(user.matched_at)}
-                                                </p>
-                                                <p className="text-sm text-green-700 font-medium mt-1">承諾メッセージ:</p>
-                                                <p className="text-base text-gray-700">{user.match_message}</p>
-                                            </div>
+                                        <div className="mt-4">
+                                            <p className="text-sm text-gray-500">
+                                                {activeTab === 'fromMe' ? '送信日時' : '受信日時'}: {formatDateSafe(user.matched_at)}
+                                            </p>
+                                            <p className="text-sm text-green-700 font-medium mt-1">承諾メッセージ:</p>
+                                            <p className="text-base text-gray-700">{user.match_message}</p>
                                         </div>
                                     )}
 
@@ -217,7 +217,7 @@ export default function MatchingsPageClient() {
                 </ul>
             )}
 
-            {/* --- Profile Modal --- */}
+            {/* Profile Modal */}
             <ProfileModal
                 userId={selectedUserId}
                 isOpen={isProfileModalOpen}
