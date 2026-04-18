@@ -14,7 +14,7 @@ type User = {
 type Profile = {
     user_id?: number;
     display_name?: string;
-    gender?: number;
+    gender: 'male' | 'female' | '';
     age?: number;
     residence?: string;
     occupation?: string;

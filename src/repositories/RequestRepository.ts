@@ -1,6 +1,6 @@
 // src/repositories/RequestRepository.ts
 import db from "@/lib/db";
-import { RowDataPacket } from 'mysql2/promise';
+import { RowDataPacket, ResultSetHeader, PoolConnection } from 'mysql2/promise';
 
 export class RequestRepository {
     static async insertRequest(data: {
@@ -218,5 +218,27 @@ export class RequestRepository {
             request_created_at: String(row.request_created_at),
             post_id: Number(row.post_id),
         };
+    }
+
+    /**
+     * 指定された post に紐づくリクエストをキャンセル状態にする
+     * トランザクション前提（conn 必須）
+     */
+    static async cancelByPost(
+        conn: PoolConnection,
+        postId: number
+    ): Promise<number> {
+        const [result] = await conn.execute<ResultSetHeader>(
+            `
+            UPDATE requests
+            SET status = 'canceled',
+                updated_at = NOW()
+            WHERE post_id = ?
+              AND status IN ('pending', 'accepted')
+            `,
+            [postId]
+        );
+
+        return result.affectedRows;
     }
 }

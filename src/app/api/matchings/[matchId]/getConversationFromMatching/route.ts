@@ -67,6 +67,7 @@ export async function GET(req: Request) {
             // ---- マッチング ----
             match_message: matchingMessageInfo.match_message ?? null,
             match_from_user_id: matchingMessageInfo.from_user_id ?? null,
+            matched_at: matchingMessageInfo.created_at ?? null,
 
             // ---- DM ----
             dm_message: dmMessageInfo?.message ?? null,

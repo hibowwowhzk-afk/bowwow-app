@@ -2,23 +2,31 @@
 'use client'
 
 import { ReactNode } from 'react'
-import { usePathname } from 'next/navigation'  // 現在のパスを取得
-import HeaderWrapper from '@/app/components/HeaderWrapper'  // HeaderWrapperをインポート
+import { usePathname } from 'next/navigation'
+import HeaderWrapper from '@/app/components/HeaderWrapper'
 
 export default function HeaderGuard({ children }: { children: ReactNode }) {
-    const pathname = usePathname()  // 現在のパスを取得
+    const pathname = usePathname()
 
-    // '/auth/*' のページだけで HeaderWrapper と BottomNav を表示
-    const shouldShowHeaderAndNav = pathname.startsWith('/auth/')
+    // 除外したいパス
+    const hideHeaderPaths = [
+        '/auth/register/profile/first'
+    ]
+
+    const isHidden = hideHeaderPaths.some(path =>
+        pathname.startsWith(path)
+    )
+
+    const shouldShowHeaderAndNav =
+        pathname.startsWith('/auth/') && !isHidden
 
     if (!shouldShowHeaderAndNav) {
-        return <>{children}</>  // '/auth/*' 以外のページでは HeaderWrapper と BottomNav なしで表示
+        return <>{children}</>
     }
 
     return (
         <div>
-        {/* '/auth/*' のページでは HeaderWrapper と BottomNav を表示 */}
-        <HeaderWrapper>{children}</HeaderWrapper>
+            <HeaderWrapper>{children}</HeaderWrapper>
         </div>
     )
 }

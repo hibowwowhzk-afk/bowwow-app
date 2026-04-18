@@ -148,4 +148,220 @@ export class UserRepository {
             image_url: image?.image_url ?? null
         };
     }
+
+    /**
+     * 指定ユーザーのプロフィール画像を1件取得する
+     * @param userId - ユーザーID
+     * @returns 画像レコード or null
+     */
+    static async findProfileImageByUserId(
+        userId: number
+    ): Promise<{
+        user_id: number;
+        image_url: string;
+        order: number;
+    } | null> {
+        const [rows] = await db.execute(
+            `
+            SELECT user_id, image_url, \`order\`
+            FROM user_profile_image
+            WHERE user_id = ?
+            ORDER BY \`order\` ASC
+            LIMIT 1
+            `,
+            [userId]
+        );
+
+        return (rows as any[])[0] ?? null;
+    }
+
+    /**
+     * 指定ユーザーのプロフィール画像を全削除する
+     * @param userId - ユーザーID
+     */
+    static async deleteProfileImage(userId: number): Promise<void> {
+        await db.execute(
+            'DELETE FROM user_profile_image WHERE user_id = ?',
+            [userId]
+        );
+    }
+
+    /**
+     * プロフィール画像を新規登録する
+     * @param image - 画像情報
+     */
+    static async addProfileImage(image: {
+        user_id: number;
+        image_url: string;
+        order: number;
+    }): Promise<void> {
+        await db.execute(
+            `
+            INSERT INTO user_profile_image
+                (user_id, image_url, \`order\`, created_at)
+            VALUES
+                (?, ?, ?, NOW())
+            `,
+            [
+                image.user_id,
+                image.image_url,
+                image.order,
+            ]
+        );
+    }
+
+    /**
+     * 指定したユーザーIDのプロフィール情報と画像URLを取得する
+     * @param userId - ユーザーID
+     * @returns プロフィール情報 + 画像URL（存在しなければ null）
+     */
+    static async findProfileWithImageByUserId(userId: number): Promise<{
+        user_id: number;
+        display_name: string;
+        age: number;
+        residence: string | null;
+        occupation: string | null;
+        message: string | null;
+        image_url: string | null;
+    } | null> {
+        // プロフィール取得
+        const [profileRows] = await db.execute(
+            `
+            SELECT
+                user_id,
+                display_name,
+                age,
+                residence,
+                occupation,
+                message
+            FROM user_profile
+            WHERE user_id = ?
+            LIMIT 1
+            `,
+            [userId]
+        );
+
+        const profile = (profileRows as any[])[0];
+        if (!profile) return null;
+
+        // プロフィール画像取得（優先度順で1件）
+        const [imageRows] = await db.execute(
+            `
+            SELECT image_url
+            FROM user_profile_image
+            WHERE user_id = ?
+            ORDER BY \`order\` ASC
+            LIMIT 1
+            `,
+            [userId]
+        );
+
+        const image = (imageRows as any[])[0];
+
+        return {
+            ...profile,
+            image_url: image?.image_url ?? null,
+        };
+    }
+
+    /**
+     * ユーザーを新規作成する
+     * @param uid Firebase UID
+     * @param email メールアドレス
+     */
+    static async createUser(uid: string, email: string): Promise<number> {
+        const [result] = await db.execute(
+            `
+            INSERT INTO user_info
+                (u_id, email)
+            VALUES
+                (?, ?)
+            `,
+            [uid, email]
+        );
+
+        const insertId = (result as any).insertId;
+        return insertId;
+    }
+
+    /**
+     * プロフィールを新規作成する（初回登録）
+     * @param profile - プロフィール情報
+     */
+    static async createProfile(profile: {
+        user_id: number;
+        display_name: string;
+        gender: number;
+        age: number;
+        residence: string;
+        occupation: string;
+        message: string;
+        created_by: string;
+        updated_by: string;
+    }): Promise<boolean> {
+        try {
+            const query = `
+            INSERT INTO user_profile (
+                user_id,
+                display_name,
+                gender,              -- ← 追加
+                age,
+                residence,
+                occupation,
+                message,
+                is_profile_completed,
+                created_at,
+                created_by,
+                updated_at,
+                updated_by
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?, 0, NOW(), ?, NOW(), ?
+            )
+            `;
+
+            const values = [
+                profile.user_id,
+                profile.display_name,
+                profile.gender,       // ← 追加
+                profile.age,
+                profile.residence,
+                profile.occupation,
+                profile.message,
+                profile.created_by,
+                profile.updated_by,
+            ];
+
+            await db.execute(query, values);
+            return true;
+        } catch (error) {
+            console.error('[CREATE_PROFILE_ERROR]', error);
+            return false;
+        }
+    }
+
+    /**
+     * プロフィール登録完了フラグを更新する
+     * @param userId - ユーザーID
+     * @param flag - 完了フラグ（0 or 1）
+     */
+    static async updateProfileCompleted(
+        userId: number,
+        flag: number
+    ): Promise<boolean> {
+        try {
+            const query = `
+            UPDATE user_profile
+            SET
+                is_profile_completed = ?,
+                updated_at = NOW()
+            WHERE user_id = ?
+            `;
+
+            await db.execute(query, [flag, userId]);
+            return true;
+        } catch (error) {
+            console.error('[UPDATE_PROFILE_COMPLETED_ERROR]', error);
+            return false;
+        }
+    }
 }

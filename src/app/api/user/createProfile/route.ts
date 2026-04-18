@@ -42,109 +42,107 @@ export async function POST(req: NextRequest) {
 
         const display_name = form.get('display_name') as string;
         const age = Number(form.get('age'));
+        const genderStr = form.get('gender') as 'male' | 'female' | '';
         const residence = form.get('residence') as string;
         const occupation = form.get('occupation') as string;
         const message = form.get('message') as string;
-        console.log('display_name:' + display_name);
-        console.log('age raw:' +age);
+
         const imageChanged = form.get('imageChanged') === '1';
         const imageDeleted = form.get('imageDeleted') === '1';
         const newImage = form.get('image') as File | null;
 
+        /* ------------------------------
+         * 4. バリデーション
+         * ------------------------------ */
         if (!display_name || Number.isNaN(age)) {
             return NextResponse.json(
-                { error: '入力が不正です' },
+                { error: '表示名と年齢は必須です' },
+                { status: 400 }
+            );
+        }
+
+        if (age < 18) {
+            return NextResponse.json(
+                { error: '18歳未満は登録できません' },
+                { status: 400 }
+            );
+        }
+
+        let gender: number;
+        if (genderStr === 'male') {
+            gender = 1;
+        } else if (genderStr === 'female') {
+            gender = 2;
+        } else {
+            return NextResponse.json(
+                { error: '性別が不正です' },
                 { status: 400 }
             );
         }
 
         /* ------------------------------
-         * 4. 既存画像取得（画像処理用）
-         * ------------------------------ */
-        let existingImage = null;
-        if (imageChanged) {
-            existingImage =
-                await UserRepository.findProfileImageByUserId(userId);
-        }
-
-        /* ------------------------------
-         * 5. 画像処理を先に実行
-         * ------------------------------ */
-
+        * 5. 画像アップロード
+        * ------------------------------ */
         let uploadedImageUrl: string | null = null;
 
-        if (imageChanged) {
-            // 5-1. 新画像がある場合は先に Cloudinary に upload
-            if (newImage) {
-                const buffer = Buffer.from(await newImage.arrayBuffer());
+        if (newImage) { // imageChanged フラグ不要
+            const buffer = Buffer.from(await newImage.arrayBuffer());
 
-                uploadedImageUrl = await new Promise<string>((resolve, reject) => {
-                    const uploadStream = cloudinary.uploader.upload_stream(
-                        {
-                            folder: 'profile',
-                            transformation: [
-                                { width: 400, height: 400, crop: 'fill' },
-                            ],
-                        },
-                        (error, result) => {
-                            if (error || !result?.secure_url) {
-                                return reject(error);
-                            }
-                            resolve(result.secure_url);
+            uploadedImageUrl = await new Promise<string>((resolve, reject) => {
+                const uploadStream = cloudinary.uploader.upload_stream(
+                    {
+                        folder: 'profile',
+                        transformation: [
+                            { width: 400, height: 400, crop: 'fill' },
+                        ],
+                    },
+                    (error, result) => {
+                        if (error || !result?.secure_url) {
+                            return reject(error);
                         }
-                    );
-                    uploadStream.end(buffer);
-                });
-            }
-
-            // 5-2. 既存画像があれば Cloudinary から削除
-            if (existingImage) {
-                const filename = existingImage.image_url.split('/').pop()!;
-                const publicId = filename.split('.')[0];
-
-                await cloudinary.uploader.destroy(
-                    `profile/${publicId}`
+                        resolve(result.secure_url);
+                    }
                 );
-            }
+                uploadStream.end(buffer);
+            });
         }
 
         /* ------------------------------
-         * 6. プロフィール基本情報更新
-         *    （ここまで来たら画像処理は成功）
+         * 6. プロフィール作成
          * ------------------------------ */
-        await UserRepository.updateProfile(userId, {
+        await UserRepository.createProfile({
+            user_id: userId,
             display_name,
             age,
+            gender,
             residence,
             occupation,
             message,
+            created_by: uid,
             updated_by: uid,
         });
 
         /* ------------------------------
-         * 7. 画像DB更新
+         * 7. 画像登録
          * ------------------------------ */
-        if (imageChanged) {
-            // 7-1. 既存画像レコード削除
-            if (existingImage) {
-                await UserRepository.deleteProfileImage(userId);
-            }
-
-            // 7-2. 削除のみでなければ新規登録
-            if (!imageDeleted && uploadedImageUrl) {
-                await UserRepository.addProfileImage({
-                    user_id: userId,
-                    image_url: uploadedImageUrl,
-                    order: 1,
-                });
-            }
+        if (uploadedImageUrl) {
+            await UserRepository.addProfileImage({
+                user_id: userId,
+                image_url: uploadedImageUrl,
+                order: 1,
+            });
         }
 
+        /* ------------------------------
+         * 8. 完了フラグ更新
+         * ------------------------------ */
+        await UserRepository.updateProfileCompleted(userId, 1);
+
         return NextResponse.json({
-            message: 'プロフィールを更新しました',
+            message: 'プロフィールを作成しました',
         });
     } catch (err: any) {
-        console.error('[UPDATE_PROFILE_ERROR]', err);
+        console.error('[CREATE_PROFILE_ERROR]', err);
         return NextResponse.json(
             { error: err.message || 'サーバーエラー' },
             { status: 500 }

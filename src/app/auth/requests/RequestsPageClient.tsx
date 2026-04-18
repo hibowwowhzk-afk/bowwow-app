@@ -103,10 +103,7 @@ export default function RequestsPageClient() {
                     fetch("/api/requests/getFromMe"),
                     fetch("/api/requests/getFromOthers"),
                 ]);
-                const [dataMe, dataOthers] = await Promise.all([
-                    resMe.json(),
-                    resOthers.json(),
-                ]);
+                const [dataMe, dataOthers] = await Promise.all([resMe.json(), resOthers.json()]);
                 if (resMe.ok) setRequestsFromMe(dataMe.requestList || []);
                 if (resOthers.ok) setRequestsFromOthers(dataOthers.requestList || []);
                 if (!resMe.ok || !resOthers.ok) throw new Error("リクエスト取得失敗");
@@ -136,7 +133,7 @@ export default function RequestsPageClient() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ match_message: message || null }),
             });
-            if (!res.ok) throw new Error("処理に失敗しました");
+            if (!res.ok) throw new Error("承諾処理に失敗しました");
         } catch (e) {
             alert((e as Error).message);
             setActionStatuses((prev) => ({ ...prev, [modalRequestId]: null }));
@@ -150,7 +147,7 @@ export default function RequestsPageClient() {
             const res = await fetch(`/api/requests/${requestId}/rejected`, {
                 method: "POST",
             });
-            if (!res.ok) throw new Error("処理に失敗しました");
+            if (!res.ok) throw new Error("拒否処理に失敗しました");
         } catch (e) {
             alert((e as Error).message);
             setActionStatuses((prev) => ({ ...prev, [requestId]: null }));
@@ -172,9 +169,7 @@ export default function RequestsPageClient() {
                 <button
                     onClick={() => setTab("fromMe")}
                     className={`flex-1 py-2 text-center ${
-                        tab === "fromMe"
-                            ? "border-b-2 border-blue-600 font-bold"
-                            : "text-gray-500"
+                        tab === "fromMe" ? "border-b-2 border-blue-600 font-bold" : "text-gray-500"
                     }`}
                 >
                     自分から
@@ -182,9 +177,7 @@ export default function RequestsPageClient() {
                 <button
                     onClick={() => setTab("fromOthers")}
                     className={`flex-1 py-2 text-center ${
-                        tab === "fromOthers"
-                            ? "border-b-2 border-blue-600 font-bold"
-                            : "text-gray-500"
+                        tab === "fromOthers" ? "border-b-2 border-blue-600 font-bold" : "text-gray-500"
                     }`}
                 >
                     相手から
@@ -225,7 +218,7 @@ export default function RequestsPageClient() {
                                     </div>
                                 </div>
 
-                                {/* やりとり・プロフィール (縦並び) */}
+                                {/* やりとり・プロフィール */}
                                 <div className="flex flex-col space-y-2 mb-4">
                                     <button
                                         className="w-full px-4 py-2 text-base bg-blue-500 text-white rounded hover:bg-blue-600"
@@ -243,19 +236,17 @@ export default function RequestsPageClient() {
 
                                 {/* 日時 */}
                                 <div className="text-sm text-gray-500 mb-2">
-                                    {isFromOthers ? "受信日時" : "送信日時"}:
-                                    {" "}{new Date(user.request_created_at).toLocaleString("ja-JP")}
+                                    {isFromOthers ? "受信日時" : "送信日時"}:{" "}
+                                    {new Date(user.request_created_at).toLocaleString("ja-JP")}
                                 </div>
 
                                 {/* メッセージ */}
                                 <div className="mb-3">
-                                    <p className="text-sm text-blue-800 font-medium">
-                                        リクエストメッセージ:
-                                    </p>
+                                    <p className="text-sm text-blue-800 font-medium">リクエストメッセージ:</p>
                                     <p className="text-sm text-gray-700">{user.request_message}</p>
                                 </div>
 
-                                {/* 承諾・拒否（完全縦並び） */}
+                                {/* 承諾・拒否ボタン */}
                                 {isFromOthers && (
                                     <div className="flex flex-col space-y-2">
                                         <button

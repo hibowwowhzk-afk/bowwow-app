@@ -1,6 +1,6 @@
 // src/repositories/MatchesRepository.ts
 import db from "@/lib/db";
-import { RowDataPacket } from 'mysql2';
+import { RowDataPacket, PoolConnection } from "mysql2/promise";
 
 export type MatchedUser = {
     match_id: number;
@@ -28,36 +28,49 @@ export class MatchesRepository {
                 u.display_name AS user_display_name,
                 pi.image_url AS user_profile_image,
                 m.from_user_id,
-                m.to_user_id
+                m.to_user_id,
+                sn.message AS dm_notify_message,
+                sn.sent_at AS dm_notify_sent_at
+
             FROM matches m
             JOIN requests r ON m.request_id = r.id
             JOIN posts p ON m.post_id = p.id
             JOIN user_profile u ON m.to_user_id = u.user_id
-            LEFT JOIN user_profile_image pi ON u.user_id = pi.user_id AND pi.order = 1
+            LEFT JOIN user_profile_image pi 
+                ON u.user_id = pi.user_id AND pi.order = 1
+            LEFT JOIN sns_notifications sn
+                ON sn.match_id = m.id
+
             WHERE m.from_user_id = ?
               AND p.status = 'active'
             ORDER BY m.matched_at DESC
         `, [userId]);
-    
+
         return (rows as any[]).map(row => ({
             post_date: row.post_date,
             match_id: row.match_id,
             matched_at: row.matched_at,
             match_message: row.match_message,
+
             user_display_name: row.user_display_name,
             user_profile_image: row.user_profile_image,
+
             self_user_id: userId,
             from_user_id: row.from_user_id,
             to_user_id: row.to_user_id,
+
+            dm_notify_message: row.dm_notify_message ?? null,
+            dm_notify_sent_at: row.dm_notify_sent_at ?? null,
         }));
     }
+
     /**
      * 相手からのマッチング（fromOthers）
      */
     static async getMatchingsFromOthers(userId: number): Promise<MatchedUser[]> {
         const [rows] = await db.execute<RowDataPacket[]>(`
             SELECT
-                p.date AS post_date,               
+                p.date AS post_date,
                 m.id AS match_id,
                 m.matched_at,
                 m.match_message,
@@ -65,27 +78,36 @@ export class MatchesRepository {
                 u.display_name AS user_display_name,
                 pi.image_url AS user_profile_image,
                 m.from_user_id,
-                m.to_user_id
+                m.to_user_id,
+                sn.message AS dm_notify_message,
+                sn.sent_at AS dm_notify_sent_at
             FROM matches m
             JOIN requests r ON m.request_id = r.id
             JOIN posts p ON m.post_id = p.id
             JOIN user_profile u ON m.from_user_id = u.user_id
-            LEFT JOIN user_profile_image pi ON u.user_id = pi.user_id AND pi.order = 1
+            LEFT JOIN user_profile_image pi
+                ON u.user_id = pi.user_id AND pi.order = 1
+            LEFT JOIN sns_notifications sn
+                ON sn.match_id = m.id
             WHERE m.to_user_id = ?
-              AND p.status = 'active'
+            AND p.status = 'active'
             ORDER BY m.matched_at DESC
         `, [userId]);
-    
+
         return (rows as any[]).map(row => ({
             post_date: row.post_date,
             match_id: row.match_id,
             matched_at: row.matched_at,
             match_message: row.match_message,
+
             user_display_name: row.user_display_name,
             user_profile_image: row.user_profile_image,
             self_user_id: userId,
             from_user_id: row.from_user_id,
             to_user_id: row.to_user_id,
+
+            dm_notify_message: row.dm_notify_message ?? null,
+            dm_notify_sent_at: row.dm_notify_sent_at ?? null,
         }));
     }
 
@@ -176,4 +198,26 @@ export class MatchesRepository {
             matched_at: row.matched_at,
         };
     }
+
+    /**
+     * 指定された post に紐づくマッチをキャンセル扱いにする
+     * トランザクション前提（conn 必須）
+     */
+    static async cancelByPost(
+        conn: PoolConnection,
+        postId: number
+    ): Promise<number> {
+        const [result] = await conn.execute(
+            `
+            UPDATE matches
+            SET status = 'canceled',
+                updated_at = NOW()
+            WHERE post_id = ?
+            `,
+            [postId]
+        );
+
+        return (result as any).affectedRows;
+    }
+
 }

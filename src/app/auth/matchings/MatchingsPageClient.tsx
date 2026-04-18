@@ -10,6 +10,10 @@ type MatchedUser = {
     post_date: string;
     matched_at: string;
     match_message: string | null;
+
+    dm_notify_message: string | null;
+    dm_notify_sent_at?: string | null; // ★ 追加
+
     user_display_name: string;
     user_profile_image: string | null;
     self_user_id: number;
@@ -52,9 +56,12 @@ export default function MatchingsPageClient() {
                     resFromMe.json(),
                     resFromOthers.json(),
                 ]);
+
                 if (resFromMe.ok) setMatchingsFromMe(dataFromMe.matchingsList || []);
                 if (resFromOthers.ok) setMatchingsFromOthers(dataFromOthers.matchingsList || []);
-                if (!resFromMe.ok || !resFromOthers.ok) throw new Error('一部データ取得に失敗');
+                if (!resFromMe.ok || !resFromOthers.ok) {
+                    throw new Error();
+                }
             } catch {
                 setError('マッチング情報の取得に失敗しました');
             } finally {
@@ -73,9 +80,10 @@ export default function MatchingsPageClient() {
         }
         setLoadingSNS(user.match_id);
         try {
-            const targetUserId = user.from_user_id === user.self_user_id ? user.to_user_id : user.from_user_id;
+            const targetUserId =
+                user.from_user_id === user.self_user_id ? user.to_user_id : user.from_user_id;
             const res = await fetch(`/api/user/${targetUserId}/getSnsAccounts`);
-            if (!res.ok) throw new Error('SNS取得失敗');
+            if (!res.ok) throw new Error();
             const data: SNSAccounts = await res.json();
             setSnsAccountsMap(prev => ({ ...prev, [user.match_id]: data }));
             setOpenSNSId(user.match_id);
@@ -86,7 +94,8 @@ export default function MatchingsPageClient() {
         }
     }
 
-    function formatDateSafe(dateStr: string) {
+    function formatDateSafe(dateStr?: string | null) {
+        if (!dateStr) return '';
         const d = new Date(dateStr);
         return isNaN(d.getTime()) ? '-' : d.toLocaleString('ja-JP');
     }
@@ -96,17 +105,25 @@ export default function MatchingsPageClient() {
             <h1 className="text-2xl font-semibold mb-4">マッチングリスト</h1>
             {error && <p className="text-red-500 mb-4">{error}</p>}
 
-            {/* タブ切り替え */}
+            {/* タブ */}
             <div className="flex mb-6 border-b border-gray-300">
                 <button
                     onClick={() => setActiveTab('fromMe')}
-                    className={`flex-1 py-2 text-center ${activeTab === 'fromMe' ? 'border-b-2 border-blue-600 font-bold' : 'text-gray-500'}`}
+                    className={`flex-1 py-2 ${
+                        activeTab === 'fromMe'
+                            ? 'border-b-2 border-blue-600 font-bold'
+                            : 'text-gray-500'
+                    }`}
                 >
                     自分から
                 </button>
                 <button
                     onClick={() => setActiveTab('fromOthers')}
-                    className={`flex-1 py-2 text-center ${activeTab === 'fromOthers' ? 'border-b-2 border-blue-600 font-bold' : 'text-gray-500'}`}
+                    className={`flex-1 py-2 ${
+                        activeTab === 'fromOthers'
+                            ? 'border-b-2 border-blue-600 font-bold'
+                            : 'text-gray-500'
+                    }`}
                 >
                     相手から
                 </button>
@@ -123,34 +140,37 @@ export default function MatchingsPageClient() {
                             const sns = snsAccountsMap[user.match_id];
                             const isLoading = loadingSNS === user.match_id;
                             const isSNSOpen = openSNSId === user.match_id;
+                            const isDMNotified = !!user.dm_notify_message;
 
                             return (
                                 <li
                                     key={user.match_id}
-                                    className={`flex flex-col p-4 border rounded-lg shadow-sm hover:bg-gray-50 ${user.match_id === highlightIdNum ? 'border-red-500 bg-red-50' : 'bg-white'}`}
+                                    className={`p-4 border rounded-lg shadow-sm ${
+                                        user.match_id === highlightIdNum
+                                            ? 'border-red-500 bg-red-50'
+                                            : 'bg-white'
+                                    }`}
                                 >
-                                    {/* 画像：正方形大きめ */}
-                                    <div className="w-full max-w-xs mx-auto mb-4">
-                                        <div className="w-full aspect-square overflow-hidden rounded-lg shadow">
-                                            {user.user_profile_image ? (
-                                                <img
-                                                    src={user.user_profile_image}
-                                                    alt={user.user_display_name}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full bg-gray-300 flex items-center justify-center text-white font-semibold text-4xl">
-                                                    {user.user_display_name[0]}
-                                                </div>
-                                            )}
-                                        </div>
+                                    {/* 画像 */}
+                                    <div className="w-full aspect-square mb-4 overflow-hidden rounded-lg">
+                                        {user.user_profile_image ? (
+                                            <img
+                                                src={user.user_profile_image}
+                                                alt={user.user_display_name}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full bg-gray-300 flex items-center justify-center text-4xl text-white">
+                                                {user.user_display_name[0]}
+                                            </div>
+                                        )}
                                     </div>
 
-                                    {/* ボタン縦並び */}
-                                    <div className="flex flex-col space-y-2">
+                                    {/* ボタン */}
+                                    <div className="space-y-2">
                                         <button
                                             onClick={() => setOpenConversationId(user.match_id)}
-                                            className="w-full px-4 py-2 text-base bg-blue-500 text-white rounded hover:bg-blue-600"
+                                            className="w-full py-2 bg-blue-500 text-white rounded"
                                         >
                                             やりとり
                                         </button>
@@ -164,7 +184,7 @@ export default function MatchingsPageClient() {
                                                 setSelectedUserId(otherUserId);
                                                 setIsProfileModalOpen(true);
                                             }}
-                                            className="w-full px-4 py-2 text-base bg-gray-500 text-white rounded hover:bg-gray-600"
+                                            className="w-full py-2 bg-gray-500 text-white rounded"
                                         >
                                             プロフィール
                                         </button>
@@ -172,32 +192,53 @@ export default function MatchingsPageClient() {
                                         <button
                                             onClick={() => handleShowSNS(user)}
                                             disabled={isLoading}
-                                            className={`w-full px-4 py-2 text-base rounded ${
-                                                isLoading ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-green-500 text-white hover:bg-green-600'
-                                            }`}
+                                            className="w-full py-2 bg-green-500 text-white rounded"
                                         >
-                                            {isLoading ? '読み込み中...' : 'SNSアカウント表示'}
+                                            SNSアカウント表示
                                         </button>
 
-                                        <button
-                                            onClick={() => setShowDMModal(user.match_id)}
-                                            className="w-full px-4 py-2 text-base bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                                        >
-                                            DM送信を相手に知らせる
-                                        </button>
+                                        {!isDMNotified && (
+                                            <button
+                                                onClick={() => setShowDMModal(user.match_id)}
+                                                className="w-full py-2 bg-yellow-500 text-white rounded"
+                                            >
+                                                DM送信を相手に知らせる
+                                            </button>
+                                        )}
                                     </div>
 
+                                    {/* メッセージ表示 */}
                                     {user.match_message && (
-                                        <div className="mt-4">
-                                            <p className="text-sm text-gray-500">
-                                                {activeTab === 'fromMe' ? '送信日時' : '受信日時'}: {formatDateSafe(user.matched_at)}
+                                        <div className="mt-4 text-sm">
+                                            <p className="text-gray-500">
+                                                {formatDateSafe(user.matched_at)}
                                             </p>
-                                            <p className="text-sm text-green-700 font-medium mt-1">承諾メッセージ:</p>
-                                            <p className="text-base text-gray-700">{user.match_message}</p>
+                                            <p className="text-green-700 font-medium mt-1">
+                                                承諾メッセージ
+                                            </p>
+                                            <p>{user.match_message}</p>
+
+                                            {user.dm_notify_message && (
+                                            <div className="mt-2 text-sm">
+                                                {user.dm_notify_sent_at && (
+                                                    <p className="text-gray-500">
+                                                        {formatDateSafe(user.dm_notify_sent_at)}
+                                                    </p>
+                                                )}
+                                                <p className="text-blue-600 font-medium mt-1">
+                                                    DM通知メッセージ
+                                                </p>
+                                                <p>
+                                                    {user.dm_notify_message}
+                                                </p>
+                                            </div>
+                                        )}
                                         </div>
                                     )}
 
-                                    {isSNSOpen && sns && <SNSModal sns={sns} onClose={() => setOpenSNSId(null)} />}
+                                    {isSNSOpen && sns && (
+                                        <SNSModal sns={sns} onClose={() => setOpenSNSId(null)} />
+                                    )}
                                     {openConversationId === user.match_id && (
                                         <ConversationModalFromMatching
                                             matchId={user.match_id}
@@ -217,7 +258,6 @@ export default function MatchingsPageClient() {
                 </ul>
             )}
 
-            {/* Profile Modal */}
             <ProfileModal
                 userId={selectedUserId}
                 isOpen={isProfileModalOpen}
@@ -227,7 +267,7 @@ export default function MatchingsPageClient() {
     );
 }
 
-// --- SNS Modal ---
+/* ---------- SNS Modal ---------- */
 function SNSModal({ sns, onClose }: { sns: SNSAccounts; onClose: () => void }) {
     const hasTwitter = !!sns.twitter;
     const hasInstagram = !!sns.instagram;
@@ -260,7 +300,7 @@ function SNSModal({ sns, onClose }: { sns: SNSAccounts; onClose: () => void }) {
     );
 }
 
-// --- DM通知用モーダル ---
+/* ---------- DM通知 Modal ---------- */
 function DMNotifyModal({ matchId, onClose }: { matchId: number; onClose: () => void }) {
     const [message, setMessage] = useState('DM送信しました。よろしくお願いします。');
     const [sending, setSending] = useState(false);
@@ -273,11 +313,10 @@ function DMNotifyModal({ matchId, onClose }: { matchId: number; onClose: () => v
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message }),
             });
-            if (!res.ok) throw new Error('送信失敗');
-            alert('メッセージを送信しました');
+            if (!res.ok) throw new Error();
+            alert('送信しました');
             onClose();
-        } catch (err) {
-            console.error(err);
+        } catch {
             alert('送信に失敗しました');
         } finally {
             setSending(false);
@@ -285,14 +324,10 @@ function DMNotifyModal({ matchId, onClose }: { matchId: number; onClose: () => v
     }
 
     return (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-            <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-4">
-                <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-semibold text-lg">相手に通知するメッセージ</h3>
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
-                </div>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white p-4 rounded-lg max-w-md w-full">
                 <textarea
-                    className="w-full p-2 border rounded mb-4"
+                    className="w-full border p-2 mb-3"
                     rows={4}
                     value={message}
                     onChange={e => setMessage(e.target.value)}
@@ -300,7 +335,7 @@ function DMNotifyModal({ matchId, onClose }: { matchId: number; onClose: () => v
                 <button
                     onClick={handleSend}
                     disabled={sending}
-                    className={`px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 ${sending ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className="bg-yellow-500 text-white px-4 py-2 rounded"
                 >
                     {sending ? '送信中...' : '送信'}
                 </button>

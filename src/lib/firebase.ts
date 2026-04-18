@@ -1,8 +1,6 @@
 // lib/firebase.ts
-
-// Firebase を初期化し、ユーザーの認証状態を取得
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
 import { useAuthState } from 'react-firebase-hooks/auth';
 
 const firebaseConfig = {
@@ -14,36 +12,26 @@ const firebaseConfig = {
     appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
 };
 
-let app: FirebaseApp | undefined;
+// ここを window 判定しない
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-    if (typeof window !== 'undefined') {
-    app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-}
+// 常に Auth を返す
+export const auth = getAuth(app);
 
-export const auth: Auth | null = app ? getAuth(app) : null;
-
-// useAuth フックを提供
+// useAuth フック
 export const useAuth = () => {
-    if (!auth) {
-        throw new Error('Firebase Auth is not initialized');
-    }
     return useAuthState(auth);
 };
 
-// ID トークン取得用
+// ID トークン取得
 export async function getIdToken(): Promise<string | null> {
-    if (!auth) {
-        console.warn('Firebase Auth is not initialized.');
-        return null;
-    }
     const user = auth.currentUser;
-    if (user) {
-        try {
+    if (!user) return null;
+
+    try {
         return await user.getIdToken();
-        } catch (err) {
+    } catch (err) {
         console.error('Failed to get ID token:', err);
         return null;
-        }
     }
-    return null;
 }

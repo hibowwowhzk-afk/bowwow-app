@@ -21,7 +21,7 @@ export async function GET() {
             return NextResponse.json({ error: 'ユーザー情報が見つかりません' }, { status: 404 });
         }
 
-        // 相手からのマッチング取得
+        // 自分からのマッチング取得
         const rows = await MatchesRepository.getMatchingsFromMe(user.user_id);
 
         return NextResponse.json({ matchingsList: rows });

@@ -38,7 +38,7 @@ export default function PostListPage() {
         if (!ok) return;
 
         try {
-            const res = await fetch(`/api/posts/${id}`, { method: "DELETE" });
+            const res = await fetch(`/api/posts/${id}/cancel`, { method: "DELETE" });
             if (res.ok) {
                 alert("削除しました。");
                 fetchPosts();
@@ -53,12 +53,12 @@ export default function PostListPage() {
 
     return (
         <main className="pb-20 pt-6 px-4 max-w-md mx-auto">
-            <h1 className="text-2xl font-bold mb-6 text-center">ポストリスト</h1>
+            <h1 className="text-2xl font-semibold mb-4">ポストリスト</h1>
 
             {loading ? (
-                <p className="text-center">読み込み中...</p>
+                <p className="text-gray-500">読み込み中...</p>
             ) : posts.length === 0 ? (
-                <p className="text-center">まだ投稿がありません。</p>
+                <p className="text-gray-500">まだ投稿がありません。</p>
             ) : (
                 <ul className="space-y-6">
                     {posts.map((post) => {

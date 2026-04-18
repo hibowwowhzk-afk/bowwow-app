@@ -1,6 +1,6 @@
 // src/repositories/postRepository.ts
 import db from '@/lib/db';
-import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import { RowDataPacket, ResultSetHeader, PoolConnection } from 'mysql2/promise';
 
 export type PostRow = {
     post_id: number;
@@ -202,11 +202,13 @@ export class PostRepository {
             LEFT JOIN post_images i 
                 ON p.id = i.post_id AND i.order = 1
             WHERE p.user_id = ?
+              AND p.status = 'active'
             ORDER BY p.created_at DESC
             `,
             [user_id]
-        )
-        return rows as PostRow[]
+        );
+    
+        return rows as PostRow[];
     }
 
     /**
@@ -333,4 +335,43 @@ export class PostRepository {
         await db.execute(sql, [id]);
     }
 
+    /**
+     * 投稿をキャンセル状態にする
+     * トランザクション前提（conn 必須）
+     */
+    static async cancel(
+        conn: PoolConnection,
+        postId: number
+    ): Promise<number> {
+        const [result] = await conn.execute<ResultSetHeader>(
+            `
+            UPDATE posts
+            SET status = 'canceled',
+                updated_at = NOW()
+            WHERE id = ?
+              AND status = 'active'
+            `,
+            [postId]
+        );
+
+        return result.affectedRows;
+    }
+
+    /**
+     * 投稿キャンセル時に post_images を物理削除する
+     * - cancel 処理専用
+     * - トランザクション用に conn を受け取る
+     */
+    static async deletePostImagesOnCancel(
+        conn: PoolConnection,
+        postId: number
+    ): Promise<number> {
+        const sql = `
+            DELETE FROM post_images
+            WHERE post_id = ?
+        `;
+
+        const [result] = await conn.execute<ResultSetHeader>(sql, [postId]);
+        return result.affectedRows;
+    }
 }

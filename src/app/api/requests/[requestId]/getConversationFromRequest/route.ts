@@ -1,4 +1,4 @@
-// src/app/api/matchings/[matchId]/getConversationFromMatching/route.ts
+// src/app/api/matchings/[requestId]/getConversationFromMatching/route.ts
 
 import { NextResponse } from 'next/server';
 import { verifySessionFromRequest } from '@/lib/firebase-session';

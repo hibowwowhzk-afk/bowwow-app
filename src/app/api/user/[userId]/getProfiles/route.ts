@@ -15,12 +15,13 @@ export async function GET(req: Request) {
         const url = new URL(req.url);
         const pathSegments = url.pathname.split('/');
         // 例: /api/user/123/getProfiles
-        const userId = pathSegments[pathSegments.length - 2];
+        const userIdStr = pathSegments[pathSegments.length - 2];
+        const userId = Number(userIdStr);
         if (!userId) {
             return NextResponse.json({ error: 'userId が指定されていません' }, { status: 400 });
         }
 
-        const profile = await UserRepository.findProfileByUserId(userId);
+        const profile = await UserRepository.findProfileWithImageByUserId(userId);
         if (!profile) {
             return NextResponse.json({ error: 'ユーザープロフィールが見つかりません' }, { status: 404 });
         }

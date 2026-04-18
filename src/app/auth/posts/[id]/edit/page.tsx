@@ -43,7 +43,6 @@ export default function EditPostPage() {
 
                 setMessage(data.post.message || '');
                 setIsImmediate(data.post.is_immediate);
-console.log("取得データ:", JSON.stringify(data, null, 2));
                 let initialDate = '';
                 if (data.post.is_immediate || !data.post.date) {
                     const today = new Date();
