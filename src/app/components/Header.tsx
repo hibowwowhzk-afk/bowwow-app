@@ -22,7 +22,7 @@ export default function Header() {
         const fetchProfile = async () => {
             try {
                 const res = await fetch('/api/user/getProfileInfo', {
-                    method: 'POST',
+                    method: 'GET',
                     headers: { 'Content-Type': 'application/json' },
                 });
 

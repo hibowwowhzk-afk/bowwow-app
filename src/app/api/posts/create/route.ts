@@ -22,14 +22,33 @@ export async function POST(req: Request) {
 
         const uid = authResult.uid;
 
+        // 自分のユーザー情報を取得
+        const userInfo = await UserRepository.findUserByUID(uid);
+        if (userInfo.kyc_status !== 'approved') {
+            return NextResponse.json({ error: 'KYC_REQUIRED' }, { status: 404 });
+        }
+
         // 自分のプロフィール取得
         const user = await UserRepository.findUserWithProfileByUID(uid);
         if (!user) {
             return NextResponse.json({ error: 'ユーザー情報が見つかりません' }, { status: 404 });
         }
 
+        // 自分のプロフィール取得
         const formData = await req.formData();
         const date = formData.get('date') as string;
+        const futurePostCount = await PostRepository.countFuturePostsByUser(
+            user.user_id,
+            date
+        );
+
+        if (futurePostCount >= 3) {
+            return NextResponse.json(
+                { error: 'FUTURE_POST_LIMIT' },
+                { status: 400 }
+            );
+        }
+
         const message = formData.get('message') as string;
         const isImmediate = formData.get('isImmediate') === '1';
         const files = formData.getAll('images').slice(0, 2) as File[];

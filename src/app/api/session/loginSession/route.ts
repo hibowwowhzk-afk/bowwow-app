@@ -6,20 +6,26 @@ import { adminAuth } from '@/lib/firebase-admin';
 
 export async function POST(request: NextRequest) {
     try {
-        const body = await request.json();
-        const { idToken } = body;
+        const { idToken } = await request.json();
 
         if (!idToken) {
-        return NextResponse.json({ error: 'IDトークンがありません' }, { status: 400 });
+            return NextResponse.json(
+                { error: 'IDトークンがありません' },
+                { status: 400 }
+            );
         }
 
         await adminAuth.verifyIdToken(idToken);
+
         const expiresIn = 60 * 60 * 1000;
-        const sessionCookie = await adminAuth.createSessionCookie(idToken, { expiresIn });
 
-        const cookieStore = await cookies();
+        const sessionCookie = await adminAuth.createSessionCookie(idToken, {
+            expiresIn,
+        });
 
-        await cookieStore.set('session', sessionCookie, {
+        const cookieStore = cookies();
+
+        (cookieStore as any).set('session', sessionCookie, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             path: '/',
@@ -29,7 +35,9 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ message: 'セッション開始' });
     } catch (error) {
-        console.error('[SESSION ERROR]', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return NextResponse.json(
+            { error: 'Internal Server Error' },
+            { status: 500 }
+        );
     }
 }

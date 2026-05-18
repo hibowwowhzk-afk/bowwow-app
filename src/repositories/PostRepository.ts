@@ -374,4 +374,19 @@ export class PostRepository {
         const [result] = await conn.execute<ResultSetHeader>(sql, [postId]);
         return result.affectedRows;
     }
+
+    static async countFuturePostsByUser(user_id: number, date: string) {
+        const [rows] = await db.query(
+            `
+            SELECT COUNT(*) as count
+            FROM posts
+            WHERE user_id = ?
+            AND date >= ?
+            AND status = ?
+            `,
+            [user_id, date, 'active']
+        );
+    
+        return (rows as any)[0].count;
+    }
 }

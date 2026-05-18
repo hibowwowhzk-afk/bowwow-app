@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import ConversationModalFromRequest from "@/app/components/ui/ConversationModalFromRequest";
 import ProfileModal from "@/app/components/ui/ProfileModal";
 
@@ -49,6 +49,7 @@ const ApproveModal: React.FC<ApproveModalProps> = ({
                 onClick={(e) => e.stopPropagation()}
             >
                 <h3 className="text-lg font-semibold mb-4">承認時の一言メッセージ</h3>
+
                 <textarea
                     className="w-full p-2 border rounded resize-none mb-4"
                     rows={4}
@@ -57,6 +58,7 @@ const ApproveModal: React.FC<ApproveModalProps> = ({
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                 />
+
                 <div className="flex justify-end space-x-3">
                     <button
                         className="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400"
@@ -64,6 +66,7 @@ const ApproveModal: React.FC<ApproveModalProps> = ({
                     >
                         キャンセル
                     </button>
+
                     <button
                         className="px-4 py-2 rounded bg-green-500 text-white hover:bg-green-600"
                         onClick={() => onSubmit(message)}
@@ -79,20 +82,25 @@ const ApproveModal: React.FC<ApproveModalProps> = ({
 export default function RequestsPageClient() {
     const [requestsFromMe, setRequestsFromMe] = useState<Request[]>([]);
     const [requestsFromOthers, setRequestsFromOthers] = useState<Request[]>([]);
-    const [actionStatuses, setActionStatuses] = useState<Record<number, ActionStatus>>({});
+    const [actionStatuses, setActionStatuses] =
+        useState<Record<number, ActionStatus>>({});
+
     const [error, setError] = useState<string | null>(null);
     const [tab, setTab] = useState<"fromMe" | "fromOthers">("fromOthers");
+
     const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
     const [modalRequestId, setModalRequestId] = useState<number | null>(null);
+
     const [highlightIds, setHighlightIds] = useState<number[]>([]);
     const [openConversationId, setOpenConversationId] = useState<number | null>(null);
     const [openProfileId, setOpenProfileId] = useState<number | null>(null);
 
     const searchParams = useSearchParams();
+    const router = useRouter();
 
     useEffect(() => {
         setHighlightIds(
-            searchParams.get("highlight")?.split(",").map((id) => Number(id)) || []
+            searchParams.get("highlight")?.split(",").map(Number) || []
         );
     }, [searchParams]);
 
@@ -103,20 +111,55 @@ export default function RequestsPageClient() {
                     fetch("/api/requests/getFromMe"),
                     fetch("/api/requests/getFromOthers"),
                 ]);
-                const [dataMe, dataOthers] = await Promise.all([resMe.json(), resOthers.json()]);
+
+                const [dataMe, dataOthers] = await Promise.all([
+                    resMe.json(),
+                    resOthers.json(),
+                ]);
+
                 if (resMe.ok) setRequestsFromMe(dataMe.requestList || []);
                 if (resOthers.ok) setRequestsFromOthers(dataOthers.requestList || []);
-                if (!resMe.ok || !resOthers.ok) throw new Error("リクエスト取得失敗");
+
+                if (!resMe.ok || !resOthers.ok) {
+                    throw new Error("リクエスト取得失敗");
+                }
             } catch {
                 setError("リクエスト情報の取得に失敗しました");
             }
         }
+
         fetchRequests();
     }, []);
 
-    const currentList = tab === "fromMe" ? requestsFromMe : requestsFromOthers;
+    const currentList =
+        tab === "fromMe" ? requestsFromMe : requestsFromOthers;
 
-    function openApproveModal(requestId: number) {
+    // =========================
+    // KYCチェック共通
+    // =========================
+    const checkKyc = async (): Promise<boolean> => {
+        try {
+            const res = await fetch("/api/kyc/userVerification");
+            const data = await res.json();
+
+            if (!data.verified) {
+                router.push("/auth/kyc");
+                return false;
+            }
+
+            return true;
+        } catch (err) {
+            console.error(err);
+            router.push("/auth/kyc");
+            return false;
+        }
+    };
+
+    // 承認モーダル
+    async function openApproveModal(requestId: number) {
+        const ok = await checkKyc();
+        if (!ok) return;
+
         setModalRequestId(requestId);
         setIsApproveModalOpen(true);
     }
@@ -124,44 +167,93 @@ export default function RequestsPageClient() {
     async function submitAction(message: string) {
         if (modalRequestId === null) return;
 
-        setActionStatuses((prev) => ({ ...prev, [modalRequestId]: "accepted" }));
+        setActionStatuses((prev) => ({
+            ...prev,
+            [modalRequestId]: "accepted",
+        }));
+
         setIsApproveModalOpen(false);
 
         try {
-            const res = await fetch(`/api/requests/${modalRequestId}/accepted`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ match_message: message || null }),
-            });
+            const res = await fetch(
+                `/api/requests/${modalRequestId}/accepted`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        match_message: message || null,
+                    }),
+                }
+            );
+
             if (!res.ok) throw new Error("承諾処理に失敗しました");
         } catch (e) {
             alert((e as Error).message);
-            setActionStatuses((prev) => ({ ...prev, [modalRequestId]: null }));
+
+            setActionStatuses((prev) => ({
+                ...prev,
+                [modalRequestId]: null,
+            }));
         }
     }
 
     async function rejectAction(requestId: number) {
-        setActionStatuses((prev) => ({ ...prev, [requestId]: "rejected" }));
+        const ok = await checkKyc();
+        if (!ok) return;
+
+        setActionStatuses((prev) => ({
+            ...prev,
+            [requestId]: "rejected",
+        }));
 
         try {
-            const res = await fetch(`/api/requests/${requestId}/rejected`, {
-                method: "POST",
-            });
+            const res = await fetch(
+                `/api/requests/${requestId}/rejected`,
+                { method: "POST" }
+            );
+
             if (!res.ok) throw new Error("拒否処理に失敗しました");
         } catch (e) {
             alert((e as Error).message);
-            setActionStatuses((prev) => ({ ...prev, [requestId]: null }));
+
+            setActionStatuses((prev) => ({
+                ...prev,
+                [requestId]: null,
+            }));
         }
     }
 
-    function openProfile(user: Request) {
-        const otherUserId = tab === "fromOthers" ? user.from_user_id : user.to_user_id;
+    // =========================
+    // ✅ 追加：DM（やりとり）KYCチェック
+    // =========================
+    async function openConversationSafe(requestId: number) {
+        const ok = await checkKyc();
+        if (!ok) return;
+
+        setOpenConversationId(requestId);
+    }
+
+    // =========================
+    // ✅ 追加：プロフィール（SNS）KYCチェック
+    // =========================
+    async function openProfileSafe(user: Request) {
+        const ok = await checkKyc();
+        if (!ok) return;
+
+        const otherUserId =
+            tab === "fromOthers"
+                ? user.from_user_id
+                : user.to_user_id;
+
         setOpenProfileId(otherUserId);
     }
 
     return (
         <div className="p-6 max-w-md mx-auto">
-            <h1 className="text-2xl font-semibold mb-6">リクエストリスト</h1>
+            <h1 className="text-2xl font-semibold mb-6">
+                リクエストリスト
+            </h1>
+
             {error && <p className="text-red-500 mb-4">{error}</p>}
 
             {/* タブ */}
@@ -169,15 +261,20 @@ export default function RequestsPageClient() {
                 <button
                     onClick={() => setTab("fromMe")}
                     className={`flex-1 py-2 text-center ${
-                        tab === "fromMe" ? "border-b-2 border-blue-600 font-bold" : "text-gray-500"
+                        tab === "fromMe"
+                            ? "border-b-2 border-blue-600 font-bold"
+                            : "text-gray-500"
                     }`}
                 >
                     自分から
                 </button>
+
                 <button
                     onClick={() => setTab("fromOthers")}
                     className={`flex-1 py-2 text-center ${
-                        tab === "fromOthers" ? "border-b-2 border-blue-600 font-bold" : "text-gray-500"
+                        tab === "fromOthers"
+                            ? "border-b-2 border-blue-600 font-bold"
+                            : "text-gray-500"
                     }`}
                 >
                     相手から
@@ -187,21 +284,29 @@ export default function RequestsPageClient() {
             {/* リスト */}
             <ul className="space-y-4">
                 {currentList.length === 0 ? (
-                    <li className="text-gray-500">リクエストはありません</li>
+                    <li className="text-gray-500">
+                        リクエストはありません
+                    </li>
                 ) : (
                     currentList.map((user) => {
-                        const isHighlighted = highlightIds.includes(user.request_id);
-                        const status = actionStatuses[user.request_id];
-                        const isFromOthers = tab === "fromOthers";
+                        const isHighlighted =
+                            highlightIds.includes(user.request_id);
+
+                        const status =
+                            actionStatuses[user.request_id];
+
+                        const isFromOthers =
+                            tab === "fromOthers";
 
                         return (
                             <li
                                 key={user.request_id}
                                 className={`flex flex-col p-4 border rounded-lg shadow-sm ${
-                                    isHighlighted ? "border-blue-500 bg-blue-50" : "bg-white"
+                                    isHighlighted
+                                        ? "border-blue-500 bg-blue-50"
+                                        : "bg-white"
                                 }`}
                             >
-                                {/* アイコン */}
                                 <div className="w-full max-w-xs mx-auto mb-4">
                                     <div className="w-full aspect-square overflow-hidden rounded-lg shadow">
                                         {user.user_profile_image ? (
@@ -218,39 +323,34 @@ export default function RequestsPageClient() {
                                     </div>
                                 </div>
 
-                                {/* やりとり・プロフィール */}
+                                {/* ボタン */}
                                 <div className="flex flex-col space-y-2 mb-4">
                                     <button
                                         className="w-full px-4 py-2 text-base bg-blue-500 text-white rounded hover:bg-blue-600"
-                                        onClick={() => setOpenConversationId(user.request_id)}
+                                        onClick={() =>
+                                            openConversationSafe(user.request_id)
+                                        }
                                     >
                                         やりとり
                                     </button>
+
                                     <button
                                         className="w-full px-4 py-2 text-base bg-gray-500 text-white rounded hover:bg-gray-600"
-                                        onClick={() => openProfile(user)}
+                                        onClick={() =>
+                                            openProfileSafe(user)
+                                        }
                                     >
                                         プロフィール
                                     </button>
                                 </div>
 
-                                {/* 日時 */}
-                                <div className="text-sm text-gray-500 mb-2">
-                                    {isFromOthers ? "受信日時" : "送信日時"}:{" "}
-                                    {new Date(user.request_created_at).toLocaleString("ja-JP")}
-                                </div>
-
-                                {/* メッセージ */}
-                                <div className="mb-3">
-                                    <p className="text-sm text-blue-800 font-medium">リクエストメッセージ:</p>
-                                    <p className="text-sm text-gray-700">{user.request_message}</p>
-                                </div>
-
-                                {/* 承諾・拒否ボタン */}
+                                {/* 承認・拒否 */}
                                 {isFromOthers && (
                                     <div className="flex flex-col space-y-2">
                                         <button
-                                            onClick={() => openApproveModal(user.request_id)}
+                                            onClick={() =>
+                                                openApproveModal(user.request_id)
+                                            }
                                             disabled={!!status}
                                             className={`w-full px-4 py-2 rounded font-semibold text-white ${
                                                 status === "accepted"
@@ -258,11 +358,15 @@ export default function RequestsPageClient() {
                                                     : "bg-green-500 hover:bg-green-600"
                                             } disabled:opacity-50`}
                                         >
-                                            {status === "accepted" ? "承諾済み" : "承諾"}
+                                            {status === "accepted"
+                                                ? "承諾済み"
+                                                : "承諾"}
                                         </button>
 
                                         <button
-                                            onClick={() => rejectAction(user.request_id)}
+                                            onClick={() =>
+                                                rejectAction(user.request_id)
+                                            }
                                             disabled={!!status}
                                             className={`w-full px-4 py-2 rounded font-semibold text-white ${
                                                 status === "rejected"
@@ -270,7 +374,9 @@ export default function RequestsPageClient() {
                                                     : "bg-gray-600 hover:bg-gray-700"
                                             } disabled:opacity-50`}
                                         >
-                                            {status === "rejected" ? "拒否済み" : "拒否"}
+                                            {status === "rejected"
+                                                ? "拒否済み"
+                                                : "拒否"}
                                         </button>
                                     </div>
                                 )}
@@ -278,7 +384,9 @@ export default function RequestsPageClient() {
                                 {openConversationId === user.request_id && (
                                     <ConversationModalFromRequest
                                         requestId={user.request_id}
-                                        onClose={() => setOpenConversationId(null)}
+                                        onClose={() =>
+                                            setOpenConversationId(null)
+                                        }
                                     />
                                 )}
                             </li>

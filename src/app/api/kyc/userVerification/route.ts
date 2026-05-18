@@ -1,10 +1,10 @@
-// src/app/api/user/getProfileInfo/route.ts
+// src/app/api/user/userVerification.ts
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { UserRepository } from '@/repositories/UserRepository';
 import { verifySessionFromRequest } from '@/lib/firebase-session';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
     try {
         /* ------------------------------
          * 1. セッション認証
@@ -29,31 +29,22 @@ export async function GET() {
             );
         }
 
-        /* ------------------------------
-         * 3. プロフィール + 画像取得
-         * ------------------------------ */
-        const profile = await UserRepository.getProfileById(user.user_id);
-        if (!profile) {
-            return NextResponse.json(
-                { error: 'Profile not found' },
-                { status: 404 }
-            );
-        }
+        // KYC確認
+        const verified = user.kyc_status === 'approved';
 
         return NextResponse.json({
-            profile: {
-                display_name: profile.display_name,
-                age: profile.age,
-                residence: profile.residence,
-                occupation: profile.occupation,
-                message: profile.message,
-                image_url: profile.image_url,
-            },
+            verified,
+            kycStatus: user.kyc_status,
         });
+
     } catch (err) {
-        console.error('getProfileInfo Error:', err);
+        console.error('userVerification error:', err);
+
         return NextResponse.json(
-            { error: 'Internal Server Error' },
+            {
+                verified: false,
+                error: 'Internal Server Error',
+            },
             { status: 500 }
         );
     }
