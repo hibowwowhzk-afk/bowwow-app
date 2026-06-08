@@ -91,4 +91,16 @@ export class SnsNotificationsRepository {
             sent_at: row.sent_at,
         };
     }
+
+    static async findByMatchId(matchId: number) {
+        const sql = `
+            SELECT id
+            FROM sns_notifications
+            WHERE match_id = ?
+            LIMIT 1
+        `;
+
+        const [rows]: any = await db.execute(sql, [matchId]);
+        return rows[0] || null;
+    }
 }

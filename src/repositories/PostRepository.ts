@@ -8,7 +8,7 @@ export type PostRow = {
     message: string;
     created_at: Date;
     age: number;
-    date: string; // DB の型に合わせて string or Date
+    date: string;
     display_name: string;
     x_username?: string | null;
     insta_username?: string | null;
@@ -20,9 +20,10 @@ export type PostRow = {
 export type PostSearchParams = {
     ageFrom?: number;
     ageTo?: number;
-    dateFrom?: Date;
-    dateTo?: Date;
-    keywords?: string[];
+    dateFrom?: string;
+    dateTo?: string;
+    keywordMust?: string;
+    keywordOr?: string[];
     isImmediate?: boolean;
 };
 
@@ -37,8 +38,9 @@ export type PostSearchParams = {
  * @returns 投稿の配列（各投稿には画像情報を含む）
  */
 export class PostRepository {
-    static async findImmediateActivePosts(genderNum: number, uid: string): Promise<PostRow[]> {
-        const [rows] = await db.query(`
+    static async findImmediateActivePosts(genderNum: number, uid: string, userId: number): Promise<PostRow[]> {
+        const [rows] = await db.query(
+            `
             SELECT
                 p.id AS post_id,
                 p.user_id,
@@ -51,15 +53,28 @@ export class PostRepository {
                 i.image_url,
                 i.order AS image_order
             FROM posts p
-            JOIN user_profile u ON p.user_id = u.user_id
-            LEFT JOIN post_images i ON p.id = i.post_id
+            JOIN user_profile u
+                ON p.user_id = u.user_id
+            LEFT JOIN post_images i
+                ON p.id = i.post_id
             WHERE p.is_immediate = 1
                 AND p.status = 'active'
                 AND p.user_id != ?
                 AND u.gender != ?
+
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM requests r
+                    WHERE r.post_id = p.id
+                    AND r.from_user_id = ?
+                    AND r.status <> 'canceled'
+                )
+
             ORDER BY p.created_at DESC, i.order ASC
             LIMIT 50
-        `, [uid, genderNum]);
+            `,
+            [uid, genderNum, userId]
+        );
 
         return rows as PostRow[];
     }
@@ -70,31 +85,40 @@ export class PostRepository {
      * @param excludeUserId 除外するユーザーID（自分自身）
      * @param excludeGender 除外する性別（自分の性別）
      */
-    static async searchPosts(params: PostSearchParams, excludeUserId: number, excludeGender: number): Promise<PostRow[]> {
+    static async searchPosts(
+        params: PostSearchParams,
+        excludeUserId: number,
+        excludeGender: number
+    ): Promise<PostRow[]> {
+
         const {
             ageFrom,
             ageTo,
             dateFrom,
             dateTo,
-            keywords,
+            keywordMust,
+            keywordOr,
             isImmediate,
         } = params;
 
         const conditions: string[] = ["p.status = 'active'"];
         const values: any[] = [];
 
-        // 除外条件（自分と同性）
+        // 自分除外
         conditions.push("p.user_id != ?");
         values.push(excludeUserId);
 
+        // 性別除外
         conditions.push("u.gender != ?");
         values.push(excludeGender);
 
-        // 日付・即時
+        // 即時 or 日付
         if (isImmediate) {
             conditions.push("p.is_immediate = 1");
+
             const today = new Date();
             today.setHours(0, 0, 0, 0);
+
             conditions.push("p.date >= ?");
             values.push(today);
         } else {
@@ -102,34 +126,49 @@ export class PostRepository {
                 conditions.push("p.date >= ?");
                 values.push(dateFrom);
             }
+
             if (dateTo) {
                 conditions.push("p.date <= ?");
                 values.push(dateTo);
             }
         }
 
-        // 年齢条件
+        // 年齢
         if (ageFrom !== undefined) {
             conditions.push("u.age >= ?");
             values.push(ageFrom);
         }
+
         if (ageTo !== undefined) {
             conditions.push("u.age <= ?");
             values.push(ageTo);
         }
 
-
-        // AND 条件でのキーワード検索
-        if (keywords && keywords.length > 0) {
-            keywords.forEach(() => {
-                conditions.push("p.message LIKE ?");
-            });
-            keywords.forEach((kw) => {
-                values.push(`%${kw}%`);
-            });
+        // keyword AND
+        if (keywordMust) {
+            conditions.push("p.message LIKE ?");
+            values.push(`%${keywordMust}%`);
         }
 
-        const whereClause = `WHERE ${conditions.join(' AND ')}`;
+        // keyword OR
+        if (keywordOr && keywordOr.length > 0) {
+            const orConditions = keywordOr.map(() => "p.message LIKE ?");
+            conditions.push(`(${orConditions.join(" OR ")})`);
+            keywordOr.forEach((kw) => values.push(`%${kw}%`));
+        }
+
+        conditions.push(`
+            NOT EXISTS (
+                SELECT 1
+                FROM requests r
+                WHERE r.post_id = p.id
+                AND r.from_user_id = ?
+                AND r.status <> 'canceled'
+            )
+        `);
+        values.push(excludeUserId);
+
+        const whereClause = `WHERE ${conditions.join(" AND ")}`;
 
         const [rows] = await db.query(
             `
@@ -375,18 +414,46 @@ export class PostRepository {
         return result.affectedRows;
     }
 
-    static async countFuturePostsByUser(user_id: number, date: string) {
+    static async countFuturePostsByUser(user_id: number) {
         const [rows] = await db.query(
             `
             SELECT COUNT(*) as count
             FROM posts
             WHERE user_id = ?
-            AND date >= ?
+            AND status = ?
+            `,
+            [user_id, 'active']
+        );
+    
+        return (rows as any)[0].count;
+    }
+
+    static async countAlreadyPostsByUser(user_id: number, date: string) {
+        const [rows] = await db.query(
+            `
+            SELECT COUNT(*) as count
+            FROM posts
+            WHERE user_id = ?
+            AND date = ?
             AND status = ?
             `,
             [user_id, date, 'active']
         );
     
         return (rows as any)[0].count;
+    }
+
+    static async countByUserId(userId: number): Promise<number> {
+        const [rows] = await db.query<RowDataPacket[]>(
+            `
+            SELECT COUNT(*) AS count
+            FROM posts
+            WHERE user_id = ?
+            AND status = 'active'
+            `,
+            [userId]
+        );
+
+        return Number(rows[0].count);
     }
 }

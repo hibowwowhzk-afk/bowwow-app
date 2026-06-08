@@ -42,6 +42,7 @@ export class MatchesRepository {
                 ON sn.match_id = m.id
 
             WHERE m.from_user_id = ?
+              AND m.status = 'active'
               AND p.status = 'active'
             ORDER BY m.matched_at DESC
         `, [userId]);
@@ -90,6 +91,7 @@ export class MatchesRepository {
             LEFT JOIN sns_notifications sn
                 ON sn.match_id = m.id
             WHERE m.to_user_id = ?
+            AND m.status = 'active'
             AND p.status = 'active'
             ORDER BY m.matched_at DESC
         `, [userId]);
@@ -220,4 +222,138 @@ export class MatchesRepository {
         return (result as any).affectedRows;
     }
 
+    static async existsActiveMatchBetweenUsers(
+        userIdA: number,
+        userIdB: number
+    ): Promise<boolean> {
+        const [rows] = await db.execute<RowDataPacket[]>(
+            `
+            SELECT 1
+            FROM matches
+            WHERE status = 'active'
+            AND (
+                    (from_user_id = ? AND to_user_id = ?)
+                OR (from_user_id = ? AND to_user_id = ?)
+            )
+            LIMIT 1
+            `,
+            [userIdA, userIdB, userIdB, userIdA]
+        );
+
+        return rows.length > 0;
+    }
+
+    static async findById(matchId: number): Promise<{
+        id: number;
+        request_id: number;
+        post_id: number;
+        from_user_id: number;
+        to_user_id: number;
+        status: 'active' | 'canceled';
+    } | null> {
+        const [rows] = await db.execute<RowDataPacket[]>(
+            `
+            SELECT
+                id,
+                request_id,
+                post_id,
+                from_user_id,
+                to_user_id,
+                status
+            FROM matches
+            WHERE id = ?
+            LIMIT 1
+            `,
+            [matchId]
+        );
+
+        if (rows.length === 0) {
+            return null;
+        }
+
+        const row = rows[0];
+
+        return {
+            id: Number(row.id),
+            request_id: Number(row.request_id),
+            post_id: Number(row.post_id),
+            from_user_id: Number(row.from_user_id),
+            to_user_id: Number(row.to_user_id),
+            status: row.status,
+        };
+    }
+
+    static async cancelMatch(
+        conn: PoolConnection,
+        matchId: number
+    ): Promise<number> {
+        const [result] = await conn.execute(
+            `
+            UPDATE matches
+            SET
+                status = 'canceled',
+                updated_at = NOW()
+            WHERE id = ?
+            AND status = 'active'
+            `,
+            [matchId]
+        );
+
+        return (result as any).affectedRows;
+    }
+
+    static async countByUserId(userId: number): Promise<number> {
+        const [rows]: any = await db.query(
+            `
+            SELECT COUNT(*) AS count
+            FROM matches
+            WHERE status = 'active'
+            AND (
+                from_user_id = ?
+                OR to_user_id = ?
+            )
+            `,
+            [userId, userId]
+        );
+
+        return rows[0].count;
+    }
+
+    static async getMatchHistory(userId: number) {
+        const [rows] = await db.execute<RowDataPacket[]>(`
+            SELECT
+                m.id AS match_id,
+                p.date AS post_date,
+
+                -- 相手ユーザー
+                u.display_name AS user_display_name,
+
+                -- フィードバック
+                f.result AS feedback_result
+
+            FROM matches m
+
+            JOIN posts p
+              ON p.id = m.post_id
+
+            JOIN user_profile u
+              ON u.user_id =
+                CASE
+                    WHEN m.from_user_id = ? THEN m.to_user_id
+                    ELSE m.from_user_id
+                END
+
+            LEFT JOIN match_feedbacks f
+                  ON f.match_id = m.id
+                AND f.user_id = ?
+
+            WHERE (m.from_user_id = ? OR m.to_user_id = ?)
+                AND p.status = 'closed'
+                AND m.status = 'active'
+
+            ORDER BY p.date DESC
+        `, [userId, userId, userId, userId]);
+
+        return rows;
+    }
 }

@@ -1,5 +1,6 @@
 import db from '@/lib/db';
 import { RowDataPacket } from 'mysql2';
+import { PoolConnection } from "mysql2/promise";
 
 /**
  * ユーザー情報とプロフィール情報をまとめた型定義。
@@ -18,6 +19,13 @@ interface UserWithProfileRow extends RowDataPacket {
     twitter: string | null;
     instagram: string | null;
 }
+
+export type UserRow = RowDataPacket & {
+    user_id: number;
+    u_id: string; // Firebase UID
+    email: string;
+    is_email_verified: number;
+};
 
 export class UserRepository {
 
@@ -269,19 +277,29 @@ export class UserRepository {
      * @param uid Firebase UID
      * @param email メールアドレス
      */
-    static async createUser(uid: string, email: string): Promise<number> {
-        const [result] = await db.execute(
+    static async createUser(conn: any, uid: string, email: string): Promise<number> {
+        const [result] = await conn.execute(
             `
-            INSERT INTO user_info
-                (u_id, email)
-            VALUES
-                (?, ?)
+            INSERT INTO user_info (
+                u_id,
+                email,
+                is_email_verified,
+                authority,
+                kyc_status,
+                kyc_verified_at,
+                is_banned,
+                subscription_status,
+                created_by,
+                updated_by
+            )
+            VALUES (
+                ?, ?, 0, 'user', 'none', NULL, 0, 'none', NULL, NULL
+            )
             `,
             [uid, email]
         );
 
-        const insertId = (result as any).insertId;
-        return insertId;
+        return (result as any).insertId;
     }
 
     /**
@@ -363,5 +381,51 @@ export class UserRepository {
             console.error('[UPDATE_PROFILE_COMPLETED_ERROR]', error);
             return false;
         }
+    }
+
+    /**
+     * メール認証済みに更新
+     * @param conn Transaction Connection
+     * @param uid Firebase UID
+     */
+    static async verifyEmail(
+        conn: any,
+        uid: string
+    ): Promise<void> {
+        await conn.execute(
+            `
+            UPDATE user_info
+            SET
+                is_email_verified = 1,
+                updated_at = NOW()
+            WHERE u_id = ?
+            `,
+            [uid]
+        );
+    }
+
+    /**
+     * メールからユーザー取得
+     */
+    static async findByEmail(
+        conn: PoolConnection,
+        email: string
+    ): Promise<UserRow | null> {
+
+        const [rows] = await conn.query<UserRow[]>(
+            `
+            SELECT
+                user_id,
+                u_id,
+                email,
+                is_email_verified
+            FROM user_info
+            WHERE email = ?
+            LIMIT 1
+            `,
+            [email]
+        );
+
+        return rows[0] ?? null;
     }
 }

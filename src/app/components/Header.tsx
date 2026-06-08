@@ -45,7 +45,7 @@ export default function Header() {
             {/* ホームボタン */}
             <div
                 className="flex items-center space-x-2 cursor-pointer hover:bg-blue-700 px-3 py-1 rounded-md transition"
-                onClick={() => router.push('/auth/home')}
+                onClick={() => router.push('/home')}
                 title="ホームへ"
             >
                 <HomeIcon className="w-5 h-5" />
@@ -58,7 +58,7 @@ export default function Header() {
                 <span className="text-sm truncate max-w-[100px]">{displayName}</span>
                 <Cog6ToothIcon
                     className="w-6 h-6 cursor-pointer hover:text-gray-200"
-                    onClick={() => router.push('/auth/settings')}
+                    onClick={() => router.push('/settings')}
                     title="設定"
                 />
             </div>

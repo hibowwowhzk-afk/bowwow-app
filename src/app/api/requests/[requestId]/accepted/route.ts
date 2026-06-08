@@ -3,32 +3,132 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifySessionFromRequest } from '@/lib/firebase-session';
 import { RequestRepository } from '@/repositories/RequestRepository';
 import { MatchesRepository } from '@/repositories/MatchesRepository';
+import { UserRepository } from '@/repositories/UserRepository';
 
 export async function POST(req: NextRequest) {
     try {
+        // =========================
+        // 認証
+        // =========================
         const authResult = await verifySessionFromRequest();
+
         if ('error' in authResult) {
-            return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+            return NextResponse.json(
+                { error: authResult.error },
+                { status: authResult.status }
+            );
         }
 
+        const uid = authResult.uid;
+
+        // =========================
+        // ログインユーザー取得
+        // =========================
+        const currentUser =
+            await UserRepository.findUserByUID(uid);
+
+        if (!currentUser) {
+            return NextResponse.json(
+                { error: 'USER_NOT_FOUND' },
+                { status: 404 }
+            );
+        }
+
+        // =========================
+        // requestId取得
+        // =========================
         const url = new URL(req.url);
         const pathSegments = url.pathname.split('/');
 
-        // URL例: /api/requests/123/accepted
-        const requestIdStr = pathSegments[pathSegments.length - 2]; // requestId
+        const requestIdStr =
+            pathSegments[pathSegments.length - 2];
+
         const requestId = Number(requestIdStr);
+
         if (!requestId || isNaN(requestId)) {
-            return NextResponse.json({ error: '不正な requestId です' }, { status: 400 });
+            return NextResponse.json(
+                { error: 'INVALID_REQUEST_ID' },
+                { status: 400 }
+            );
         }
 
+        // =========================
+        // request取得
+        // =========================
+        const request =
+            await RequestRepository.getRequestById(requestId);
+
+        if (!request) {
+            return NextResponse.json(
+                { error: 'REQUEST_NOT_FOUND' },
+                { status: 404 }
+            );
+        }
+
+        // =========================
+        // 権限チェック（超重要）
+        // =========================
+        if (request.to_user_id !== currentUser.user_id) {
+            return NextResponse.json(
+                { error: 'FORBIDDEN' },
+                { status: 403 }
+            );
+        }
+
+        // =========================
+        // statusチェック
+        // =========================
+        if (request.status !== 'pending') {
+            return NextResponse.json(
+                { error: 'REQUEST_ALREADY_PROCESSED' },
+                { status: 400 }
+            );
+        }
+
+        // =========================
+        // body
+        // =========================
         const body = await req.json();
-        const matchMessage: string | null = body.match_message ?? null;
 
-        // リクエストステータス更新
-        await RequestRepository.updateRequestStatus(requestId, 'accepted');
+        const matchMessage: string =
+            body.match_message?.trim();
 
-        // 承認の場合のみマッチ作成
-        const request = await RequestRepository.getRequestById(requestId);
+        // =========================
+        // メッセージバリデーション
+        // =========================
+        if (!matchMessage) {
+            return NextResponse.json(
+                { error: 'MESSAGE_REQUIRED' },
+                { status: 400 }
+            );
+        }
+
+        if (matchMessage.length > 200) {
+            return NextResponse.json(
+                { error: 'MESSAGE_TOO_LONG' },
+                { status: 400 }
+            );
+        }
+
+        // =========================
+        // request承認
+        // =========================
+        const result =
+            await RequestRepository.updateRequestStatus(
+                requestId,
+                'accepted'
+            );
+
+        if (result.affectedRows === 0) {
+            return NextResponse.json(
+                { error: 'REQUEST_ALREADY_PROCESSED' },
+                { status: 400 }
+            );
+        }
+
+        // =========================
+        // match作成
+        // =========================
         await MatchesRepository.insertMatch({
             request_id: request.id,
             post_id: request.post_id,
@@ -37,9 +137,16 @@ export async function POST(req: NextRequest) {
             match_message: matchMessage,
         });
 
-        return NextResponse.json({ success: true });
+        return NextResponse.json({
+            success: true,
+        });
+
     } catch (err) {
         console.error('処理中にエラー:', err);
-        return NextResponse.json({ error: 'リクエスト処理に失敗しました' }, { status: 500 });
+
+        return NextResponse.json(
+            { error: 'INTERNAL_SERVER_ERROR' },
+            { status: 500 }
+        );
     }
 }

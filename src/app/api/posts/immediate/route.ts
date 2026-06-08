@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
         }
 
         // 今すぐ飲みたい「active」投稿を取得
-        let rows = await PostRepository.findImmediateActivePosts(user.gender, uid) as PostRow[];
+        let rows = await PostRepository.findImmediateActivePosts(user.gender, uid, user.user_id) as PostRow[];
 
         // lodash で投稿をランダムに並び替える
         rows = shuffle(rows);

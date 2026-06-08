@@ -62,13 +62,13 @@ export default function NotificationBell() {
 
         if (type === 'requests') {
             const ids = pendingRequests.map(r => r.request_id).join(',');
-            router.push(`/auth/requests?highlight=${ids}`);
+            router.push(`/requests?highlight=${ids}`);
         } else if (type === 'accepted') {
             const ids = acceptedRequests.map(r => r.request_id).join(',');
-            router.push(`/auth/matchings?highlight=${ids}`);
+            router.push(`/matchings?highlight=${ids}`);
         } else if (type === 'dm') {
             const ids = dmNotifications.map(n => n.match_id).join(',');
-            router.push(`/auth/matchings?highlight=${ids}`);
+            router.push(`/matchings?highlight=${ids}`);
         }
 
         await fetchNotifications();

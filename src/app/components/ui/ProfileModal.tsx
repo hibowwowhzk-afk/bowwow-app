@@ -2,6 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 
+type ProfileModalSource =
+    | 'requests'
+    | 'matches';
+
 type UserProfile = {
     user_id: number;
     display_name: string;
@@ -16,9 +20,10 @@ type ProfileModalProps = {
     userId: number | null;
     isOpen: boolean;
     onClose: () => void;
+    source?: ProfileModalSource;
 };
 
-export default function ProfileModal({ userId, isOpen, onClose }: ProfileModalProps) {
+export default function ProfileModal({ userId, isOpen, onClose, source}: ProfileModalProps) {
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -27,7 +32,7 @@ export default function ProfileModal({ userId, isOpen, onClose }: ProfileModalPr
 
         async function fetchProfile() {
             try {
-                const res = await fetch(`/api/user/${userId}/getProfiles`);
+                const res = await fetch(`/api/user/${userId}/getProfiles?source=${source}`);
                 const data = await res.json();
                 if (res.ok) setProfile(data.profile);
                 else throw new Error('プロフィール取得に失敗しました');

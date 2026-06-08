@@ -30,9 +30,21 @@ export default function ConversationModal({ matchId, onClose }: ConversationModa
     useEffect(() => {
         async function fetchData() {
             setLoading(true);
+
             try {
-                const res = await fetch(`/api/matchings/${matchId}/getConversationFromMatching`);
-                const data = await res.json();
+                const res = await fetch(
+                    `/api/matchings/${matchId}/getConversationFromMatching`
+                );
+
+                const data = await res.json().catch(() => null);
+
+                // =========================
+                // 共通エラー処理（ここだけ）
+                // =========================
+                if (!res.ok) {
+                    throw new Error(data?.error ?? 'データ取得に失敗しました');
+                }
+
                 const selfUserId = data.self_user_id;
 
                 setPostInfo({
@@ -40,7 +52,8 @@ export default function ConversationModal({ matchId, onClose }: ConversationModa
                     date: data.post_date,
                     created_at: data.post_created_at,
                     images: data.post_images ?? [],
-                    fromUser: data.post_user_id === selfUserId ? 'self' : 'other',
+                    fromUser:
+                        data.post_user_id === selfUserId ? 'self' : 'other',
                 });
 
                 const msgs: MessageItem[] = [];
@@ -49,38 +62,55 @@ export default function ConversationModal({ matchId, onClose }: ConversationModa
                     msgs.push({
                         type: 'request',
                         message: data.request_message,
-                        fromUser: data.request_from_user_id === selfUserId ? 'self' : 'other',
+                        fromUser:
+                            data.request_from_user_id === selfUserId
+                                ? 'self'
+                                : 'other',
                         created_at: data.request_created_at,
                     });
                 }
+
                 if (data.match_message) {
                     msgs.push({
                         type: 'match',
                         message: data.match_message,
-                        fromUser: data.match_from_user_id === selfUserId ? 'self' : 'other',
+                        fromUser:
+                            data.match_from_user_id === selfUserId
+                                ? 'self'
+                                : 'other',
                         created_at: data.matched_at,
                     });
                 }
+
                 if (data.dm_message) {
                     msgs.push({
                         type: 'dm',
                         message: data.dm_message,
-                        fromUser: data.dm_from_user_id === selfUserId ? 'self' : 'other',
+                        fromUser:
+                            data.dm_from_user_id === selfUserId
+                                ? 'self'
+                                : 'other',
                         created_at: data.dm_sent_at,
                     });
                 }
 
-                msgs.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+                msgs.sort(
+                    (a, b) =>
+                        new Date(a.created_at).getTime() -
+                        new Date(b.created_at).getTime()
+                );
 
                 setMessages(msgs);
             } catch (err) {
                 console.error(err);
                 setPostInfo(null);
                 setMessages([]);
+                alert((err as Error).message);
             } finally {
                 setLoading(false);
             }
         }
+
         fetchData();
     }, [matchId]);
 

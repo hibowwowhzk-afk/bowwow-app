@@ -5,6 +5,7 @@ import pool from "@/lib/db";
 import { PostRepository } from "@/repositories/PostRepository";
 import { RequestRepository } from "@/repositories/RequestRepository";
 import { MatchesRepository } from "@/repositories/MatchesRepository";
+import { UserRepository } from '@/repositories/UserRepository';
 import { v2 as cloudinary } from "cloudinary";
 
 cloudinary.config({
@@ -23,6 +24,19 @@ export async function DELETE(req: NextRequest) {
         );
     }
 
+    // Firebase uid
+    const firebaseUid = authResult.uid;
+
+    // DBユーザー取得
+    const currentUser = await UserRepository.findUserByUID(firebaseUid);
+
+    if (!currentUser) {
+        return NextResponse.json(
+            { error: 'ユーザーが存在しません' },
+            { status: 404 }
+        );
+    }
+
     // 2. postId 取得
     const url = new URL(req.url);
     const segments = url.pathname.split("/");
@@ -33,6 +47,16 @@ export async function DELETE(req: NextRequest) {
         return NextResponse.json(
             { error: "postId が無効です" },
             { status: 400 }
+        );
+    }
+
+    // 投稿取得
+    const postDetail = await PostRepository.getPostDetailById(postId);
+
+    if (!postDetail || postDetail.user_id !== currentUser.user_id) {
+        return NextResponse.json(
+            { error: 'ポスト情報が見つかりません' },
+            { status: 404 }
         );
     }
 

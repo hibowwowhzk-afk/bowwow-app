@@ -5,12 +5,32 @@ import type { NextRequest } from 'next/server';
 
 export function middleware(req: NextRequest) {
     const token = req.cookies.get('session');
-    if (!token) {
-        return NextResponse.redirect(new URL('/login', req.url));
+
+    const publicPaths = [
+        '/',
+        '/login',
+        '/register',
+        '/verify-email',
+        '/verify-email-sent',
+        '/forgot-password',
+        '/reset-password'
+    ];
+
+    const isPublic = publicPaths.includes(req.nextUrl.pathname);
+
+    if (isPublic) {
+        return NextResponse.next();
     }
+
+    if (!token) {
+        return NextResponse.redirect(
+            new URL('/login', req.url)
+        );
+    }
+
     return NextResponse.next();
 }
 
 export const config = {
-    matcher: ['/auth/:path*'],
+    matcher: ['/((?!api|_next|favicon.ico).*)'],
 };

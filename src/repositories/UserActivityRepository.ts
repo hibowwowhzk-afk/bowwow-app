@@ -52,16 +52,16 @@ export class UserActivityRepository {
     }
 
     /**
-     * アクティビティが存在しない場合に作成する（初回ログインなどで）
+     * アクティビティを作成する（初回登録など）
      */
-    static async createIfNotExists(userId: number) {
-        await db.query(
+    static async createUser(conn: any, userId: number): Promise<void> {
+        await conn.execute(
             `
             INSERT INTO user_activity (user_id)
-            SELECT * FROM (SELECT ? AS user_id) AS tmp
+            SELECT ? FROM DUAL
             WHERE NOT EXISTS (
                 SELECT 1 FROM user_activity WHERE user_id = ?
-            ) LIMIT 1
+            )
             `,
             [userId, userId]
         );

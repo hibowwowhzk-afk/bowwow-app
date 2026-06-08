@@ -12,7 +12,7 @@ export async function POST(req: Request) {
         // ① モックモード
         // ------------------------
         if (USE_MOCK) {
-            const mockUrl = `/auth/kyc/mock?userId=${userId}`;
+            const mockUrl = `/kyc/mock?userId=${userId}`;
 
             return NextResponse.json({
                 url: mockUrl,

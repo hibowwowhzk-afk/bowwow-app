@@ -120,13 +120,22 @@ export class RequestRepository {
         throw new Error('リクエストが見つかりません');
     }
 
-    static async updateRequestStatus(requestId: number, status: 'accepted' | 'rejected') {
+    static async updateRequestStatus(
+        requestId: number,
+        status: 'accepted' | 'rejected'
+    ) {
         const sql = `
             UPDATE requests
             SET status = ?, updated_at = NOW()
             WHERE id = ?
+            AND status = 'pending'
         `;
-        const [result] = await db.execute(sql, [status, requestId]);
+
+        const [result] = await db.execute<ResultSetHeader>(
+            sql,
+            [status, requestId]
+        );
+
         return result;
     }
 
@@ -240,5 +249,147 @@ export class RequestRepository {
         );
 
         return result.affectedRows;
+    }
+
+    static async findExistingRequest(data: {
+        from_user_id: number;
+        to_user_id: number;
+        post_id: number;
+    }) {
+        const sql = `
+            SELECT id
+            FROM requests
+            WHERE from_user_id = ?
+            AND to_user_id = ?
+            AND post_id = ?
+            AND status IN ('pending', 'accepted')
+            LIMIT 1
+        `;
+
+        const [rows] = await db.execute<RowDataPacket[]>(sql, [
+            data.from_user_id,
+            data.to_user_id,
+            data.post_id,
+        ]);
+
+        if (Array.isArray(rows) && rows.length > 0) {
+            return rows[0]; // 既存あり
+        }
+
+        return null; // なし
+    }
+
+    static async existsActiveRequestBetweenUsers(
+        userIdA: number,
+        userIdB: number
+    ): Promise<boolean> {
+        const [rows] = await db.execute<RowDataPacket[]>(
+            `
+            SELECT 1
+            FROM requests
+            WHERE status = 'pending'
+            AND (
+                    (from_user_id = ? AND to_user_id = ?)
+                OR (from_user_id = ? AND to_user_id = ?)
+            )
+            LIMIT 1
+            `,
+            [userIdA, userIdB, userIdB, userIdA]
+        );
+
+        return rows.length > 0;
+    }
+
+    static async cancelRequestByMatchId(
+        conn: PoolConnection,
+        matchId: number
+    ): Promise<number> {
+        const [result] = await conn.execute<ResultSetHeader>(
+            `
+            UPDATE requests r
+            INNER JOIN matches m
+                ON m.request_id = r.id
+            SET
+                r.status = 'canceled',
+                r.updated_at = NOW()
+            WHERE m.id = ?
+            AND r.status IN ('pending', 'accepted')
+            `,
+            [matchId]
+        );
+
+        return result.affectedRows;
+    }
+
+    static async countPendingByFromUserId(userId: number): Promise<number> {
+        const [rows] = await db.execute<RowDataPacket[]>(
+            `
+            SELECT COUNT(*) AS count
+            FROM requests
+            WHERE from_user_id = ?
+            AND status = 'pending'
+            `,
+            [userId]
+        );
+
+        return Number(rows[0]?.count ?? 0);
+    }
+
+    static async findById(requestId: number) {
+        const sql = `
+            SELECT *
+            FROM requests
+            WHERE id = ?
+            LIMIT 1
+        `;
+
+        const [rows] = await db.execute<RowDataPacket[]>(sql, [requestId]);
+
+        if (rows.length === 0) return null;
+
+        return rows[0];
+    }
+
+    static async cancelRequestById(requestId: number): Promise<number> {
+        const [result] = await db.execute<ResultSetHeader>(
+            `
+            UPDATE requests
+            SET status = 'canceled',
+                updated_at = NOW()
+            WHERE id = ?
+            AND status IN ('pending', 'accepted')
+            `,
+            [requestId]
+        );
+
+        return result.affectedRows;
+    }
+
+    static async countFromMe(userId: number): Promise<number> {
+        const [rows]: any = await db.query(
+            `
+            SELECT COUNT(*) AS count
+            FROM requests
+            WHERE from_user_id = ?
+            AND status = 'pending'
+            `,
+            [userId]
+        );
+
+        return rows[0].count;
+    }
+
+    static async countFromOthers(userId: number): Promise<number> {
+        const [rows]: any = await db.query(
+            `
+            SELECT COUNT(*) AS count
+            FROM requests
+            WHERE to_user_id = ?
+            AND status = 'pending'
+            `,
+            [userId]
+        );
+
+        return rows[0].count;
     }
 }
