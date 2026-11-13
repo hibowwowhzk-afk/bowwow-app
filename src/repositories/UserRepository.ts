@@ -85,39 +85,52 @@ export class UserRepository {
      * @param user_id - 更新対象のユーザーのID
      * @param profile - 更新するプロフィール情報のオブジェクト
      */
-    static async updateProfile(user_id: number, profile: {
-        display_name: string;
-        age: number;
-        residence: string;
-        occupation: string;
-        message: string;
-        updated_by: string;
-    }) : Promise<boolean> {
+    static async updateProfile(
+        user_id: number,
+        profile: {
+            display_name: string;
+            age: number;
+            residence: string;
+            occupation: string;
+            message: string;
+            x_username: string;
+            insta_username: string;
+            updated_by: string;
+        }
+    ): Promise<boolean> {
         try {
             const query = `
-            UPDATE user_profile
-            SET
-                display_name = ?,
-                age = ?,
-                residence = ?,
-                occupation = ?,
-                message = ?,
-                updated_at = NOW(),
-                updated_by = ?
-            WHERE user_id = ?
+                UPDATE user_profile
+                SET
+                    display_name = ?,
+                    age = ?,
+                    residence = ?,
+                    occupation = ?,
+                    message = ?,
+                    x_username = ?,
+                    insta_username = ?,
+                    updated_at = NOW(),
+                    updated_by = ?
+                WHERE user_id = ?
             `;
+
             const values = [
-            profile.display_name,
-            profile.age,
-            profile.residence,
-            profile.occupation,
-            profile.message,
-            profile.updated_by,
-            user_id,
+                profile.display_name,
+                profile.age,
+                profile.residence,
+                profile.occupation,
+                profile.message,
+                profile.x_username,
+                profile.insta_username,
+                profile.updated_by,
+                user_id,
             ];
+
             await db.execute(query, values);
+
             return true;
         } catch (error) {
+            console.error('updateProfile Error:', error);
             return false;
         }
     }
@@ -134,14 +147,30 @@ export class UserRepository {
         residence: string | null;
         occupation: string | null;
         message: string | null;
+        x_username: string | null;
+        insta_username: string | null;
         image_url: string | null;
     } | null> {
+
         // プロフィール取得
         const [profileRows] = await db.execute(
-            'SELECT user_id, display_name, age, residence, occupation, message FROM user_profile WHERE user_id = ? LIMIT 1',
+            `SELECT
+                user_id,
+                display_name,
+                age,
+                residence,
+                occupation,
+                message,
+                x_username,
+                insta_username
+            FROM user_profile
+            WHERE user_id = ?
+            LIMIT 1`,
             [userId]
         );
+
         const profile = (profileRows as any[])[0];
+
         if (!profile) return null;
 
         // プロフィール画像取得（優先順に1件）
@@ -149,6 +178,7 @@ export class UserRepository {
             'SELECT image_url FROM user_profile_image WHERE user_id = ? ORDER BY `order` ASC LIMIT 1',
             [userId]
         );
+
         const image = (imageRows as any[])[0];
 
         return {
@@ -314,43 +344,50 @@ export class UserRepository {
         residence: string;
         occupation: string;
         message: string;
+        x_username: string;
+        insta_username: string;
         created_by: string;
         updated_by: string;
     }): Promise<boolean> {
         try {
             const query = `
-            INSERT INTO user_profile (
-                user_id,
-                display_name,
-                gender,              -- ← 追加
-                age,
-                residence,
-                occupation,
-                message,
-                is_profile_completed,
-                created_at,
-                created_by,
-                updated_at,
-                updated_by
-            ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, 0, NOW(), ?, NOW(), ?
-            )
+                INSERT INTO user_profile (
+                    user_id,
+                    display_name,
+                    gender,
+                    age,
+                    residence,
+                    occupation,
+                    message,
+                    x_username,
+                    insta_username,
+                    is_profile_completed,
+                    created_at,
+                    created_by,
+                    updated_at,
+                    updated_by
+                ) VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW(), ?, NOW(), ?
+                )
             `;
 
             const values = [
                 profile.user_id,
                 profile.display_name,
-                profile.gender,       // ← 追加
+                profile.gender,
                 profile.age,
                 profile.residence,
                 profile.occupation,
                 profile.message,
+                profile.x_username,
+                profile.insta_username,
                 profile.created_by,
                 profile.updated_by,
             ];
 
             await db.execute(query, values);
             return true;
+
         } catch (error) {
             console.error('[CREATE_PROFILE_ERROR]', error);
             return false;
@@ -427,5 +464,73 @@ export class UserRepository {
         );
 
         return rows[0] ?? null;
+    }
+
+    // Google UIDでユーザー検索
+    static async findGoogleUserByUID(
+        conn: PoolConnection,
+        uid: string
+    ): Promise<UserRow | null> {
+        const [rows] = await conn.query<UserRow[]>(
+            `
+            SELECT user_id, u_id, email, is_email_verified
+            FROM user_info
+            WHERE u_id = ?
+            LIMIT 1
+            `,
+            [uid]
+        );
+
+        return rows[0] ?? null;
+    }
+
+
+    // メールアドレスでユーザー検索
+    static async findGoogleUserByEmail(
+        conn: PoolConnection,
+        email: string
+    ): Promise<UserRow | null> {
+        const [rows] = await conn.query<UserRow[]>(
+            `
+            SELECT user_id, u_id, email, is_email_verified
+            FROM user_info
+            WHERE email = ?
+            LIMIT 1
+            `,
+            [email]
+        );
+
+        return rows[0] ?? null;
+    }
+
+
+    // Googleユーザー新規登録
+    static async createGoogleUser(
+        conn: PoolConnection,
+        uid: string,
+        email: string
+    ): Promise<number> {
+        const [result] = await conn.execute(
+            `
+            INSERT INTO user_info (
+                u_id,
+                email,
+                is_email_verified,
+                authority,
+                kyc_status,
+                kyc_verified_at,
+                is_banned,
+                subscription_status,
+                created_by,
+                updated_by
+            )
+            VALUES (
+                ?, ?, 1, 'user', 'none', NULL, 0, 'none', NULL, NULL
+            )
+            `,
+            [uid, email]
+        );
+
+        return (result as any).insertId;
     }
 }

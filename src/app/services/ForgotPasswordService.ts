@@ -17,7 +17,6 @@ export class ForgotPasswordService {
 
             // 存在しない or 未認証は成功扱い（情報漏洩防止）
             if (!user || user.is_email_verified !== 1) {
-                console.log("aa")
                 return { ok: true };
             }
 

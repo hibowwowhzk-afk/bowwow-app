@@ -6,22 +6,25 @@ import { verifySessionFromRequest } from '@/lib/firebase-session';
 
 export async function GET() {
     try {
-        /* ------------------------------
-         * 1. セッション認証
-         * ------------------------------ */
+        // ------------------------------
+        // 1. セッション認証
+        // ------------------------------
         const authResult = await verifySessionFromRequest();
+
         if ('error' in authResult) {
             return NextResponse.json(
                 { error: authResult.error },
                 { status: authResult.status }
             );
         }
+
         const uid = authResult.uid;
 
-        /* ------------------------------
-         * 2. user_id 取得
-         * ------------------------------ */
+        // ------------------------------
+        // 2. user_id 取得
+        // ------------------------------
         const user = await UserRepository.findUserByUID(uid);
+
         if (!user) {
             return NextResponse.json(
                 { error: 'User not found' },
@@ -29,10 +32,11 @@ export async function GET() {
             );
         }
 
-        /* ------------------------------
-         * 3. プロフィール + 画像取得
-         * ------------------------------ */
+        // ------------------------------
+        // 3. プロフィール + 画像取得
+        // ------------------------------
         const profile = await UserRepository.getProfileById(user.user_id);
+
         if (!profile) {
             return NextResponse.json(
                 { error: 'Profile not found' },
@@ -40,6 +44,9 @@ export async function GET() {
             );
         }
 
+        // ------------------------------
+        // 4. プロフィール情報を返却
+        // ------------------------------
         return NextResponse.json({
             profile: {
                 display_name: profile.display_name,
@@ -48,10 +55,14 @@ export async function GET() {
                 occupation: profile.occupation,
                 message: profile.message,
                 image_url: profile.image_url,
+                x_username: profile.x_username,
+                insta_username: profile.insta_username,
             },
         });
+
     } catch (err) {
         console.error('getProfileInfo Error:', err);
+
         return NextResponse.json(
             { error: 'Internal Server Error' },
             { status: 500 }

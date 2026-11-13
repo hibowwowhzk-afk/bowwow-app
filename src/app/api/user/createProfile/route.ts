@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { verifySessionFromRequest } from '@/lib/firebase-session';
 import { UserRepository } from '@/repositories/UserRepository';
@@ -12,55 +13,67 @@ cloudinary.config({
 export async function POST(req: NextRequest) {
     try {
         /* ------------------------------
-         * 1. セッション認証
-         * ------------------------------ */
+           1. セッション認証
+        ------------------------------ */
         const authResult = await verifySessionFromRequest();
+
         if ('error' in authResult) {
             return NextResponse.json(
                 { error: authResult.error },
                 { status: authResult.status }
             );
         }
+
         const uid = authResult.uid;
 
         /* ------------------------------
-         * 2. user_id 取得
-         * ------------------------------ */
+           2. user_id 取得
+        ------------------------------ */
         const user = await UserRepository.findUserByUID(uid);
+
         if (!user) {
             return NextResponse.json(
                 { error: 'ユーザーが見つかりませんでした' },
                 { status: 404 }
             );
         }
+
         const userId = user.user_id;
 
         /* ------------------------------
-         * 3. フォームデータ取得
-         * ------------------------------ */
+           3. フォームデータ取得
+        ------------------------------ */
         const form = await req.formData();
 
         const display_name = form.get('display_name') as string;
         const age = Number(form.get('age'));
         const genderStr = form.get('gender') as 'male' | 'female' | '';
+
         const residence = form.get('residence') as string;
         const occupation = form.get('occupation') as string;
         const message = form.get('message') as string;
+
+        // SNSアカウント
+        const x_account = String(form.get('x_account') ?? '').trim();
+        const instagram_account = String(form.get('instagram_account') ?? '').trim();
 
         const imageChanged = form.get('imageChanged') === '1';
         const imageDeleted = form.get('imageDeleted') === '1';
         const newImage = form.get('image') as File | null;
 
         /* ------------------------------
-         * 4. バリデーション
-         * ------------------------------ */
-        if (!display_name || Number.isNaN(age)) {
+           4. バリデーション
+        ------------------------------ */
+
+        // 表示名・年齢
+        if (!display_name?.trim() || Number.isNaN(age)) {
             return NextResponse.json(
                 { error: '表示名と年齢は必須です' },
                 { status: 400 }
             );
         }
 
+        // 年齢
         if (age < 18) {
             return NextResponse.json(
                 { error: '18歳未満は登録できません' },
@@ -68,7 +81,9 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        // 性別
         let gender: number;
+
         if (genderStr === 'male') {
             gender = 1;
         } else if (genderStr === 'female') {
@@ -80,12 +95,23 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        // SNSアカウント
+        // XまたはInstagramのどちらか一方は必須
+        if (!x_account && !instagram_account) {
+            return NextResponse.json(
+                {
+                    error: 'XまたはInstagramのアカウントを入力してください',
+                },
+                { status: 400 }
+            );
+        }
+
         /* ------------------------------
-        * 5. 画像アップロード
-        * ------------------------------ */
+           5. 画像アップロード
+        ------------------------------ */
         let uploadedImageUrl: string | null = null;
 
-        if (newImage) { // imageChanged フラグ不要
+        if (newImage && newImage.size > 0) {
             const buffer = Buffer.from(await newImage.arrayBuffer());
 
             uploadedImageUrl = await new Promise<string>((resolve, reject) => {
@@ -100,16 +126,18 @@ export async function POST(req: NextRequest) {
                         if (error || !result?.secure_url) {
                             return reject(error);
                         }
+
                         resolve(result.secure_url);
                     }
                 );
+
                 uploadStream.end(buffer);
             });
         }
 
         /* ------------------------------
-         * 6. プロフィール作成
-         * ------------------------------ */
+           6. プロフィール作成
+        ------------------------------ */
         await UserRepository.createProfile({
             user_id: userId,
             display_name,
@@ -118,13 +146,15 @@ export async function POST(req: NextRequest) {
             residence,
             occupation,
             message,
+            x_username: x_account,
+            insta_username: instagram_account,
             created_by: uid,
             updated_by: uid,
         });
 
         /* ------------------------------
-         * 7. 画像登録
-         * ------------------------------ */
+           7. 画像登録
+        ------------------------------ */
         if (uploadedImageUrl) {
             await UserRepository.addProfileImage({
                 user_id: userId,
@@ -134,15 +164,17 @@ export async function POST(req: NextRequest) {
         }
 
         /* ------------------------------
-         * 8. 完了フラグ更新
-         * ------------------------------ */
+           8. 完了フラグ更新
+        ------------------------------ */
         await UserRepository.updateProfileCompleted(userId, 1);
 
         return NextResponse.json({
             message: 'プロフィールを作成しました',
         });
+
     } catch (err: any) {
         console.error('[CREATE_PROFILE_ERROR]', err);
+
         return NextResponse.json(
             { error: err.message || 'サーバーエラー' },
             { status: 500 }

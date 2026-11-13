@@ -66,4 +66,24 @@ export class UserActivityRepository {
             [userId, userId]
         );
     }
+
+    /**
+     * 最終アクセス日時を現在の時間に更新
+     */
+    static async updateLastOpened(userId: number): Promise<void> {
+        await db.execute(
+            'UPDATE user_activity SET last_opened_at = NOW() WHERE user_id = ?',
+            [userId]
+        );
+    }
+
+    /**
+     * 最終ログイン日時を現在の時間に更新
+     */
+    static async updateLastLogin(userId: number): Promise<void> {
+        await db.execute(
+            'UPDATE user_activity SET last_login_at = NOW() WHERE user_id = ?',
+            [userId]
+        );
+    }
 }

@@ -11,33 +11,37 @@ cloudinary.config({
 
 export async function POST(req: NextRequest) {
     try {
-        /* ------------------------------
-         * 1. セッション認証
-         * ------------------------------ */
+        // ------------------------------
+        // 1. セッション認証
+        // ------------------------------
         const authResult = await verifySessionFromRequest();
+
         if ('error' in authResult) {
             return NextResponse.json(
                 { error: authResult.error },
                 { status: authResult.status }
             );
         }
+
         const uid = authResult.uid;
 
-        /* ------------------------------
-         * 2. user_id 取得
-         * ------------------------------ */
+        // ------------------------------
+        // 2. user_id 取得
+        // ------------------------------
         const user = await UserRepository.findUserByUID(uid);
+
         if (!user) {
             return NextResponse.json(
                 { error: 'ユーザーが見つかりませんでした' },
                 { status: 404 }
             );
         }
+
         const userId = user.user_id;
 
-        /* ------------------------------
-         * 3. フォームデータ取得
-         * ------------------------------ */
+        // ------------------------------
+        // 3. フォームデータ取得
+        // ------------------------------
         const form = await req.formData();
 
         const display_name = form.get('display_name') as string;
@@ -45,8 +49,12 @@ export async function POST(req: NextRequest) {
         const residence = form.get('residence') as string;
         const occupation = form.get('occupation') as string;
         const message = form.get('message') as string;
-        console.log('display_name:' + display_name);
-        console.log('age raw:' +age);
+
+        // SNSアカウント
+        const x_account = (form.get('x_account') as string)?.trim() || '';
+        const instagram_account =
+            (form.get('instagram_account') as string)?.trim() || '';
+
         const imageChanged = form.get('imageChanged') === '1';
         const imageDeleted = form.get('imageDeleted') === '1';
         const newImage = form.get('image') as File | null;
@@ -58,19 +66,27 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        /* ------------------------------
-         * 4. 既存画像取得（画像処理用）
-         * ------------------------------ */
+        // SNSアカウントはどちらか一方必須
+        if (!x_account && !instagram_account) {
+            return NextResponse.json(
+                { error: 'XまたはInstagramのアカウントを入力してください' },
+                { status: 400 }
+            );
+        }
+
+        // ------------------------------
+        // 4. 既存画像取得（画像処理用）
+        // ------------------------------
         let existingImage = null;
+
         if (imageChanged) {
             existingImage =
                 await UserRepository.findProfileImageByUserId(userId);
         }
 
-        /* ------------------------------
-         * 5. 画像処理を先に実行
-         * ------------------------------ */
-
+        // ------------------------------
+        // 5. 画像処理を先に実行
+        // ------------------------------
         let uploadedImageUrl: string | null = null;
 
         if (imageChanged) {
@@ -78,23 +94,27 @@ export async function POST(req: NextRequest) {
             if (newImage) {
                 const buffer = Buffer.from(await newImage.arrayBuffer());
 
-                uploadedImageUrl = await new Promise<string>((resolve, reject) => {
-                    const uploadStream = cloudinary.uploader.upload_stream(
-                        {
-                            folder: 'profile',
-                            transformation: [
-                                { width: 400, height: 400, crop: 'fill' },
-                            ],
-                        },
-                        (error, result) => {
-                            if (error || !result?.secure_url) {
-                                return reject(error);
+                uploadedImageUrl = await new Promise<string>(
+                    (resolve, reject) => {
+                        const uploadStream = cloudinary.uploader.upload_stream(
+                            {
+                                folder: 'profile',
+                                transformation: [
+                                    { width: 400, height: 400, crop: 'fill' },
+                                ],
+                            },
+                            (error, result) => {
+                                if (error || !result?.secure_url) {
+                                    return reject(error);
+                                }
+
+                                resolve(result.secure_url);
                             }
-                            resolve(result.secure_url);
-                        }
-                    );
-                    uploadStream.end(buffer);
-                });
+                        );
+
+                        uploadStream.end(buffer);
+                    }
+                );
             }
 
             // 5-2. 既存画像があれば Cloudinary から削除
@@ -108,22 +128,23 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        /* ------------------------------
-         * 6. プロフィール基本情報更新
-         *    （ここまで来たら画像処理は成功）
-         * ------------------------------ */
+        // ------------------------------
+        // 6. プロフィール基本情報・SNS更新
+        // ------------------------------
         await UserRepository.updateProfile(userId, {
             display_name,
             age,
             residence,
             occupation,
             message,
+            x_username: x_account,
+            insta_username: instagram_account,
             updated_by: uid,
         });
 
-        /* ------------------------------
-         * 7. 画像DB更新
-         * ------------------------------ */
+        // ------------------------------
+        // 7. 画像DB更新
+        // ------------------------------
         if (imageChanged) {
             // 7-1. 既存画像レコード削除
             if (existingImage) {
@@ -143,8 +164,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
             message: 'プロフィールを更新しました',
         });
+
     } catch (err: any) {
         console.error('[UPDATE_PROFILE_ERROR]', err);
+
         return NextResponse.json(
             { error: err.message || 'サーバーエラー' },
             { status: 500 }
