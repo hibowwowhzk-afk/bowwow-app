@@ -118,7 +118,7 @@ export default function RegisterPage() {
             }
 
             // ⑤ 登録成功
-            location.href = '/profile/register';
+            location.href = '/register/profile/first';
 
         } catch (err: any) {
             console.error('Google登録エラー:', err);
