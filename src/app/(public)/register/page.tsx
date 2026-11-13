@@ -118,7 +118,10 @@ export default function RegisterPage() {
             }
 
             // ⑤ 登録成功
-            location.href = '/register/profile/first';
+            alert('登録が完了しました！\nログイン画面からログインしてください。');
+
+            location.href = '/login';
+
 
         } catch (err: any) {
             console.error('Google登録エラー:', err);
