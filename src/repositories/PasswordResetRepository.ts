@@ -4,7 +4,6 @@ import { PoolConnection } from "mysql2/promise";
 
 export type PasswordResetRow = {
     user_id: number;
-    uid: string;
     token: string;
     expires_at: Date;
     last_sent_at: Date;
@@ -27,18 +26,16 @@ export class PasswordResetRepository {
 
     static async invalidateByUserId(
         conn: PoolConnection,
-        userId: number,
-        token: string
+        userId: number
     ) {
         await conn.query(
             `
             UPDATE password_resets
             SET used_at = NOW()
             WHERE user_id = ?
-              AND token = ?
               AND used_at IS NULL
             `,
-            [userId, token]
+            [userId]
         );
     }
 
