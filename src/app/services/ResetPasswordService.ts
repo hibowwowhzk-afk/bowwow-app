@@ -32,7 +32,7 @@ export class ResetPasswordService {
                 password: newPassword,
             });
 
-            await PasswordResetRepository.invalidateByUserId(conn, reset.user_id, token);
+            await PasswordResetRepository.invalidateByToken(conn, reset.user_id, token);
 
             return { ok: true };
 

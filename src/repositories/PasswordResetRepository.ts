@@ -39,6 +39,23 @@ export class PasswordResetRepository {
         );
     }
 
+    static async invalidateByToken(
+        conn: PoolConnection,
+        userId: number,
+        token: string
+    ) {
+        await conn.query(
+            `
+            UPDATE password_resets
+            SET used_at = NOW()
+            WHERE user_id = ?
+              AND token = ?
+              AND used_at IS NULL
+            `,
+            [userId, token]
+        );
+    }
+
     static async create(
         conn: PoolConnection,
         data: PasswordResetRow
