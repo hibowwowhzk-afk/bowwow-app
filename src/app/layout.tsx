@@ -8,8 +8,8 @@ import HeaderGuard from '@/app/components/HeaderGuard';
 import ActivityTracker from '@/app/components/ActivityTracker';
 
 export const metadata: Metadata = {
-    title: "Goukon Match",
-    description: "合コン特化型マッチングサービス",
+    title: "MATCH",
+    description: "MATCH",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

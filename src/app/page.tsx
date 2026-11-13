@@ -134,7 +134,7 @@ export default function HomePage() {
                             FEATURES
                         </p>
                         <h2 className="text-2xl font-black text-gray-800 mt-2">
-                            GOKON+ の魅力
+                            MATCH の魅力
                         </h2>
                     </div>
 
@@ -282,10 +282,10 @@ export default function HomePage() {
             {/* フッター */}
             <footer className="bg-gray-900 text-center py-7 px-5">
                 <p className="text-white font-black text-xl">
-                    GOKON+
+                    MATCH
                 </p>
                 <p className="text-gray-400 text-xs mt-3">
-                    © 2026 GOKON+. All Rights Reserved.
+                    © 2026 MATCH. All Rights Reserved.
                 </p>
             </footer>
 
