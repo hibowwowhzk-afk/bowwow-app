@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { PostRepository } from '@/repositories/PostRepository';
 import { UserRepository } from '@/repositories/UserRepository';
 import { verifySessionFromRequest } from '@/lib/firebase-session';
-import { ErrorMessages, ErrorCode } from '@/app/components/ErrorMessages';
+import { ErrorMessages, ErrorCode } from '@/app/util/ErrorMessages';
 import { v2 as cloudinary } from 'cloudinary';
 
 cloudinary.config({
