@@ -3,17 +3,16 @@ import mysql from 'mysql2/promise';
 import fs from 'fs';
 import path from 'path';
 
-const ca = process.env.DB_SSL_CA_BASE64
-    ? Buffer.from(
-          process.env.DB_SSL_CA_BASE64,
-          'base64'
-      ).toString('utf8')
-    : fs.readFileSync(
-          path.join(process.cwd(), 'certs', 'ca.pem'),
-          'utf8'
-      );
+const caBase64 = process.env.DB_SSL_CA_BASE64;
 
-if (!ca.includes('-----BEGIN CERTIFICATE-----')) {
+const ssl = caBase64
+    ? {
+          ca: Buffer.from(caBase64, 'base64').toString('utf8'),
+          rejectUnauthorized: true,
+      }
+    : undefined;
+
+if (ssl && !ssl.ca.includes('-----BEGIN CERTIFICATE-----')) {
     throw new Error('MySQL CA certificate is invalid');
 }
 
@@ -24,10 +23,7 @@ const db = mysql.createPool({
     password: process.env.DB_PASS!,
     database: process.env.DB_NAME!,
 
-    ssl: {
-        ca,
-        rejectUnauthorized: true,
-    },
+    ...(ssl ? { ssl } : {}),
 
     waitForConnections: true,
     connectionLimit: 5,

@@ -1,7 +1,10 @@
+// src/app/api/posts/create/route.ts
+
 import { NextResponse } from 'next/server';
 import { PostRepository } from '@/repositories/PostRepository';
 import { UserRepository } from '@/repositories/UserRepository';
 import { verifySessionFromRequest } from '@/lib/firebase-session';
+import { ErrorMessages, ErrorCode } from '@/app/components/ErrorMessages';
 import { v2 as cloudinary } from 'cloudinary';
 
 cloudinary.config({
@@ -16,9 +19,13 @@ export async function POST(req: Request) {
         // 認証
         // =========================
         const authResult = await verifySessionFromRequest();
+
         if ('error' in authResult) {
             return NextResponse.json(
-                { error: authResult.error },
+                {
+                    code: 'UNAUTHORIZED',
+                    message: ErrorMessages.UNAUTHORIZED,
+                },
                 { status: authResult.status }
             );
         }
@@ -29,17 +36,25 @@ export async function POST(req: Request) {
         // ユーザー取得
         // =========================
         const userInfo = await UserRepository.findUserByUID(uid);
+
         if (!userInfo || userInfo.kyc_status !== 'approved') {
             return NextResponse.json(
-                { error: 'KYC_REQUIRED' },
+                {
+                    code: 'KYC_REQUIRED',
+                    message: ErrorMessages.KYC_REQUIRED,
+                },
                 { status: 403 }
             );
         }
 
         const user = await UserRepository.findUserWithProfileByUID(uid);
+
         if (!user) {
             return NextResponse.json(
-                { error: 'ユーザー情報が見つかりません' },
+                {
+                    code: 'USER_NOT_FOUND',
+                    message: ErrorMessages.USER_NOT_FOUND,
+                },
                 { status: 404 }
             );
         }
@@ -49,52 +64,94 @@ export async function POST(req: Request) {
         // =========================
         const formData = await req.formData();
 
-        const rawDate = formData.get('date') as string;
-        const message = formData.get('message') as string;
+        const rawDate = formData.get('date');
+        const rawMessage = formData.get('message');
+
+        const message =
+            typeof rawMessage === 'string' ? rawMessage : '';
+
         let isImmediate = formData.get('isImmediate') === '1';
 
-        const files = formData.getAll('images') as File[];
+        const files = formData.getAll('images');
 
         // =========================
-        // messageバリデーション
+        // メッセージバリデーション
         // =========================
-        if (!message || !message.trim()) {
+        if (!message.trim()) {
             return NextResponse.json(
-                { error: 'メッセージは必須です' },
+                {
+                    code: 'MESSAGE_REQUIRED',
+                    message: ErrorMessages.MESSAGE_REQUIRED,
+                },
                 { status: 400 }
             );
         }
 
         if (message.length > 200) {
             return NextResponse.json(
-                { error: 'メッセージは200文字以内です' },
+                {
+                    code: 'MESSAGE_TOO_LONG',
+                    message: ErrorMessages.MESSAGE_TOO_LONG,
+                },
                 { status: 400 }
             );
         }
 
         // =========================
-        // 日付処理
+        // 日付バリデーション
         // =========================
+        if (typeof rawDate !== 'string' || !rawDate) {
+            return NextResponse.json(
+                {
+                    code: 'DATE_REQUIRED',
+                    message: ErrorMessages.DATE_REQUIRED,
+                },
+                { status: 400 }
+            );
+        }
+
+        // 日付形式チェック
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+            return NextResponse.json(
+                {
+                    code: 'DATE_REQUIRED',
+                    message: ErrorMessages.DATE_REQUIRED,
+                },
+                { status: 400 }
+            );
+        }
+
+        const inputDate = new Date(`${rawDate}T00:00:00`);
+
+        if (
+            Number.isNaN(inputDate.getTime()) ||
+            inputDate.getFullYear() !== Number(rawDate.substring(0, 4)) ||
+            inputDate.getMonth() + 1 !== Number(rawDate.substring(5, 7)) ||
+            inputDate.getDate() !== Number(rawDate.substring(8, 10))
+        ) {
+            return NextResponse.json(
+                {
+                    code: 'DATE_REQUIRED',
+                    message: ErrorMessages.DATE_REQUIRED,
+                },
+                { status: 400 }
+            );
+        }
+
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        if (!rawDate) {
-            return NextResponse.json(
-                { error: '日付は必須です' },
-                { status: 400 }
-            );
-        }
-
-        let date = rawDate;
-        const inputDate = new Date(date);
-        inputDate.setHours(0, 0, 0, 0);
-
         if (inputDate < today) {
             return NextResponse.json(
-                { error: 'PAST_DATE_NOT_ALLOWED' },
+                {
+                    code: 'PAST_DATE_NOT_ALLOWED',
+                    message: ErrorMessages.PAST_DATE_NOT_ALLOWED,
+                },
                 { status: 400 }
             );
         }
+
+        const date = rawDate;
 
         if (inputDate.getTime() === today.getTime()) {
             isImmediate = true;
@@ -103,13 +160,16 @@ export async function POST(req: Request) {
         }
 
         // =========================
-        // 画像バリデーション（追加）
+        // 画像バリデーション
         // =========================
 
         // 枚数制限
         if (files.length > 2) {
             return NextResponse.json(
-                { error: 'IMAGE_LIMIT_EXCEEDED' },
+                {
+                    code: 'IMAGE_LIMIT_EXCEEDED',
+                    message: ErrorMessages.IMAGE_LIMIT_EXCEEDED,
+                },
                 { status: 400 }
             );
         }
@@ -120,33 +180,45 @@ export async function POST(req: Request) {
             'image/webp',
         ];
 
-        const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+        const MAX_SIZE = 5 * 1024 * 1024;
 
         for (const file of files) {
-            if (!file) {
+            if (!(file instanceof File)) {
                 return NextResponse.json(
-                    { error: 'INVALID_IMAGE' },
+                    {
+                        code: 'INVALID_IMAGE',
+                        message: ErrorMessages.INVALID_IMAGE,
+                    },
                     { status: 400 }
                 );
             }
 
             if (file.size === 0) {
                 return NextResponse.json(
-                    { error: 'EMPTY_IMAGE' },
+                    {
+                        code: 'EMPTY_IMAGE',
+                        message: ErrorMessages.EMPTY_IMAGE,
+                    },
                     { status: 400 }
                 );
             }
 
             if (file.size > MAX_SIZE) {
                 return NextResponse.json(
-                    { error: 'IMAGE_TOO_LARGE' },
+                    {
+                        code: 'IMAGE_TOO_LARGE',
+                        message: ErrorMessages.IMAGE_TOO_LARGE,
+                    },
                     { status: 400 }
                 );
             }
 
             if (!allowedTypes.includes(file.type)) {
                 return NextResponse.json(
-                    { error: 'INVALID_IMAGE_TYPE' },
+                    {
+                        code: 'INVALID_IMAGE_TYPE',
+                        message: ErrorMessages.INVALID_IMAGE_TYPE,
+                    },
                     { status: 400 }
                 );
             }
@@ -155,25 +227,33 @@ export async function POST(req: Request) {
         // =========================
         // 投稿制限チェック
         // =========================
-        const futurePostCount = await PostRepository.countFuturePostsByUser(
-            user.user_id
-        );
+        const futurePostCount =
+            await PostRepository.countFuturePostsByUser(
+                user.user_id
+            );
 
         if (futurePostCount >= 3) {
             return NextResponse.json(
-                { error: 'FUTURE_POST_LIMIT' },
+                {
+                    code: 'FUTURE_POST_LIMIT',
+                    message: ErrorMessages.FUTURE_POST_LIMIT,
+                },
                 { status: 400 }
             );
         }
 
-        const alreadyPostCount = await PostRepository.countAlreadyPostsByUser(
-            user.user_id,
-            date
-        );
+        const alreadyPostCount =
+            await PostRepository.countAlreadyPostsByUser(
+                user.user_id,
+                date
+            );
 
         if (alreadyPostCount > 0) {
             return NextResponse.json(
-                { error: 'ALREADY_POSTED_TODAY' },
+                {
+                    code: 'ALREADY_POSTED_TODAY',
+                    message: ErrorMessages.ALREADY_POSTED_TODAY,
+                },
                 { status: 400 }
             );
         }
@@ -204,21 +284,35 @@ export async function POST(req: Request) {
                     {
                         folder: 'posts',
                         transformation: [
-                            { width: 500, height: 500, crop: 'fill' },
+                            {
+                                width: 500,
+                                height: 500,
+                                crop: 'fill',
+                            },
                         ],
                     },
                     async (error, result) => {
-                        if (error) return reject(error);
+                        try {
+                            if (error) {
+                                reject(error);
+                                return;
+                            }
 
-                        if (result?.secure_url) {
+                            if (!result?.secure_url) {
+                                reject(new Error('画像アップロードに失敗しました'));
+                                return;
+                            }
+
                             await PostRepository.addPostImage({
                                 post_id: postId,
                                 image_url: result.secure_url,
                                 order: i + 1,
                             });
-                        }
 
-                        resolve();
+                            resolve();
+                        } catch (error) {
+                            reject(error);
+                        }
                     }
                 );
 
@@ -226,14 +320,22 @@ export async function POST(req: Request) {
             });
         }
 
+        // =========================
+        // 成功レスポンス
+        // =========================
         return NextResponse.json({
             post_id: postId,
             message: '投稿が作成されました',
         });
-    } catch (error: any) {
-        console.error(error);
+
+    } catch (error: unknown) {
+        console.error('[POST_CREATE_ERROR]', error);
+
         return NextResponse.json(
-            { error: error.message || '投稿作成に失敗しました' },
+            {
+                code: 'INTERNAL_SERVER_ERROR',
+                message: ErrorMessages.INTERNAL_SERVER_ERROR,
+            },
             { status: 500 }
         );
     }

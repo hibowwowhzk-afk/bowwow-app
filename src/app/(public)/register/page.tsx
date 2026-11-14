@@ -16,14 +16,14 @@ export default function RegisterPage() {
         const cleanEmail = email.trim();
         const cleanPassword = password.trim();
 
-        // Gmailの場合はGoogle登録を案内
-        if (cleanEmail.toLowerCase().endsWith('@gmail.com')) {
-            alert('Gmailアドレスの場合は「Googleで登録」をご利用ください。');
-            return;
-        }
-
         try {
             setLoading(true);
+
+            // Gmailの場合はGoogle登録を案内
+            if (cleanEmail.toLowerCase().endsWith('@gmail.com')) {
+                alert('Gmailアドレスの場合は「Googleで登録」をご利用ください。');
+                return;
+            }
 
             if (!cleanEmail || !cleanEmail.includes('@')) {
                 alert('メールアドレスが不正です');

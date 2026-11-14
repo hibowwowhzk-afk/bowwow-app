@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -29,11 +30,11 @@ export default function CreatePostPage() {
     const [errors, setErrors] = useState<FieldErrors>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const userAge = 28;
+    const userAge = 20;
     const numPeople = 2;
     const locationExample = '博多駅周辺';
 
-    const exampleMessage = `例: 場所: ${locationExample}、人数: ${numPeople}人、年齢: 自分たち ${userAge}歳`;
+    const exampleMessage = `例: 場所: ${locationExample}、人数: ${numPeople}人、年齢:  ${userAge}代前半`;
 
     useEffect(() => {
         if (isImmediate) {
@@ -84,17 +85,13 @@ export default function CreatePostPage() {
 
             const data: ApiResponse = await res.json();
 
-            // =========================
             // KYC
-            // =========================
             if (data.code === 'KYC_REQUIRED') {
                 router.push('/kyc');
                 return;
             }
 
-            // =========================
             // Validation Errors
-            // =========================
             if (!res.ok) {
                 switch (data.code) {
                     case 'MESSAGE_REQUIRED':
@@ -114,11 +111,8 @@ export default function CreatePostPage() {
                     case 'IMAGE_LIMIT_EXCEEDED':
                     case 'IMAGE_TOO_LARGE':
                     case 'INVALID_IMAGE_TYPE':
-                        setErrors({
-                            common: data.message,
-                        });
-                        break;
-
+                    case 'INVALID_IMAGE':
+                    case 'EMPTY_IMAGE':
                     case 'FUTURE_POST_LIMIT':
                     case 'ALREADY_POSTED_TODAY':
                         setErrors({
@@ -134,16 +128,16 @@ export default function CreatePostPage() {
                         });
                 }
 
-                setIsSubmitting(false);
                 return;
             }
 
             router.push('/dashboard');
-        } catch (e: any) {
+        } catch (e: unknown) {
             setErrors({
                 common:
-                    e.message ||
-                    '通信エラーが発生しました',
+                    e instanceof Error
+                        ? e.message
+                        : '通信エラーが発生しました',
             });
         } finally {
             setIsSubmitting(false);
@@ -204,6 +198,31 @@ export default function CreatePostPage() {
                     />
                 </div>
 
+                {/* Immediate */}
+                <div>
+                    <div className="flex items-center space-x-2">
+                        <input
+                            type="checkbox"
+                            checked={isImmediate}
+                            onChange={() =>
+                                setIsImmediate(!isImmediate)
+                            }
+                            id="immediate"
+                        />
+
+                        <label
+                            htmlFor="immediate"
+                            className="font-medium"
+                        >
+                            今すぐ合流
+                        </label>
+                    </div>
+
+                    <p className="ml-6 mt-1 text-sm text-green-700">
+                        ※ 今すぐ合流できる募集として、相手側の検索結果で見つけてもらいやすくなります。
+                    </p>
+                </div>
+
                 {/* Message */}
                 <div>
                     <label className="block mb-1 font-medium">
@@ -225,25 +244,6 @@ export default function CreatePostPage() {
                         className="w-full border rounded p-2 resize-none"
                         required
                     />
-                </div>
-
-                {/* Immediate */}
-                <div className="flex items-center space-x-2">
-                    <input
-                        type="checkbox"
-                        checked={isImmediate}
-                        onChange={() =>
-                            setIsImmediate(!isImmediate)
-                        }
-                        id="immediate"
-                    />
-
-                    <label
-                        htmlFor="immediate"
-                        className="font-medium"
-                    >
-                        今すぐ飲みたい
-                    </label>
                 </div>
 
                 {/* Images */}
@@ -277,9 +277,7 @@ export default function CreatePostPage() {
                                     className="relative w-24 h-24 flex-shrink-0"
                                 >
                                     <img
-                                        src={URL.createObjectURL(
-                                            img
-                                        )}
+                                        src={URL.createObjectURL(img)}
                                         alt={`preview-${idx}`}
                                         className="w-full h-full object-cover rounded"
                                     />
@@ -290,8 +288,7 @@ export default function CreatePostPage() {
                                         onClick={() =>
                                             setImages(
                                                 images.filter(
-                                                    (_, i) =>
-                                                        i !== idx
+                                                    (_, i) => i !== idx
                                                 )
                                             )
                                         }
@@ -323,4 +320,4 @@ export default function CreatePostPage() {
             </form>
         </main>
     );
-}   
+}
