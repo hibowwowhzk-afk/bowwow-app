@@ -100,11 +100,11 @@ export default function LoginPage() {
 
         const cleanEmail = email.trim();
 
-        // Gmailアドレスの場合はGoogleログインを案内
-        if (cleanEmail.toLowerCase().endsWith('@gmail.com')) {
-            alert('Gmailアドレスの場合は「Googleでログイン」をご利用ください。');
-            return;
-        }
+        // // Gmailアドレスの場合はGoogleログインを案内
+        // if (cleanEmail.toLowerCase().endsWith('@gmail.com')) {
+        //     alert('Gmailアドレスの場合は「Googleでログイン」をご利用ください。');
+        //     return;
+        // }
 
         setLoading(true);
 
