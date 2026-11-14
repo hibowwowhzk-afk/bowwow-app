@@ -13,11 +13,17 @@ export default function RegisterPage() {
 
     // メールアドレス登録
     const handleEmailRegister = async () => {
+        const cleanEmail = email.trim();
+        const cleanPassword = password.trim();
+
+        // Gmailの場合はGoogle登録を案内
+        if (cleanEmail.toLowerCase().endsWith('@gmail.com')) {
+            alert('Gmailアドレスの場合は「Googleで登録」をご利用ください。');
+            return;
+        }
+
         try {
             setLoading(true);
-
-            const cleanEmail = email.trim();
-            const cleanPassword = password.trim();
 
             if (!cleanEmail || !cleanEmail.includes('@')) {
                 alert('メールアドレスが不正です');
@@ -122,7 +128,6 @@ export default function RegisterPage() {
 
             location.href = '/login';
 
-
         } catch (err: any) {
             console.error('Google登録エラー:', err);
 
@@ -195,6 +200,12 @@ export default function RegisterPage() {
                             onChange={(e) => setEmail(e.target.value)}
                             className="w-full border border-gray-300 rounded-md px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
+
+                        {/* Gmail利用者への案内 */}
+                        <p className="text-xs text-gray-500">
+                            ※ Gmail（@gmail.com）をご利用の場合は、
+                            「Googleで登録」からご登録ください。
+                        </p>
 
                         <input
                             type="password"

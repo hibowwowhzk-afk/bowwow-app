@@ -13,7 +13,7 @@ export default function HomePage() {
             <header className="sticky top-0 z-40 bg-[#1760f5] shadow-md">
                 <div className="max-w-2xl mx-auto flex justify-between items-center px-5 h-14">
                     <h1 className="text-xl font-black tracking-tight text-white">
-                        GOKON+
+                        MATCH
                     </h1>
 
                     <button

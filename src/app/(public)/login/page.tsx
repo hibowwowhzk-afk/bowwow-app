@@ -52,7 +52,19 @@ export default function LoginPage() {
             );
         }
 
-        // ② 最終ログイン日時を更新
+        // ②② ユーザー情報取得
+        const res = await fetch('/api/user/getUserInfo', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!res.ok) {
+            throw new Error('ユーザー情報の取得に失敗 または ユーザー登録されていません');
+        }
+
+        // ③ 最終ログイン日時を更新
         const activityRes = await fetch('/api/user/activity/login', {
             method: 'POST',
             credentials: 'include',
@@ -62,17 +74,7 @@ export default function LoginPage() {
             throw new Error('最終ログイン日時の更新に失敗しました');
         }
 
-        // ③ ユーザー情報取得
-        const res = await fetch('/api/user/getUserInfo', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        });
 
-        if (!res.ok) {
-            throw new Error('ユーザー情報の取得に失敗しました');
-        }
 
         const data: ApiResponse = await res.json();
 
@@ -95,12 +97,21 @@ export default function LoginPage() {
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         setError(null);
+
+        const cleanEmail = email.trim();
+
+        // Gmailアドレスの場合はGoogleログインを案内
+        if (cleanEmail.toLowerCase().endsWith('@gmail.com')) {
+            alert('Gmailアドレスの場合は「Googleでログイン」をご利用ください。');
+            return;
+        }
+
         setLoading(true);
 
         try {
             const credential = await signInWithEmailAndPassword(
                 auth,
-                email,
+                cleanEmail,
                 password
             );
 
@@ -267,6 +278,18 @@ export default function LoginPage() {
                             {error}
                         </p>
                     )}
+
+                    {/* 新規登録への案内 */}
+                    <div className="text-center mt-7 text-sm text-gray-600">
+                        アカウントをお持ちでない方は
+                        <br />
+                        <Link
+                            href="/register"
+                            className="text-blue-600 font-semibold hover:underline mt-2 inline-block"
+                        >
+                            新規登録はこちら
+                        </Link>
+                    </div>
 
                 </div>
             </div>
