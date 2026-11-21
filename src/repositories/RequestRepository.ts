@@ -142,9 +142,13 @@ export class RequestRepository {
     // 自分から送ったリクエスト
     static async getRequestsFromMe(userId: number) {
         try {
-            const [rows] = await db.execute(`
+            const [rows] = await db.execute<RowDataPacket[]>(
+                `
                 SELECT
+                    p.id AS post_id,
                     p.date AS post_date,
+                    p.message AS post_message,
+                    p.created_at AS  post_created_at,
                     r.id AS request_id,
                     r.message AS request_message,
                     r.created_at AS request_created_at,
@@ -155,13 +159,22 @@ export class RequestRepository {
                 FROM requests r
                 JOIN posts p ON r.post_id = p.id
                 JOIN user_profile u ON r.to_user_id = u.user_id
-                LEFT JOIN user_profile_image pi ON r.to_user_id = pi.user_id AND pi.order = 1
+                LEFT JOIN (
+                    SELECT
+                        user_id,
+                        MIN(image_url) AS image_url
+                    FROM user_profile_image
+                    WHERE \`order\` = 1
+                    GROUP BY user_id
+                ) pi ON r.to_user_id = pi.user_id
                 WHERE r.from_user_id = ?
                     AND p.status = 'active'
                     AND r.status = 'pending'
                 ORDER BY r.created_at DESC
-            `, [userId]);
-
+                `,
+                [userId]
+            );
+    
             return rows;
         } catch (error) {
             console.error('Error fetching requests from me:', error);
@@ -169,12 +182,50 @@ export class RequestRepository {
         }
     }
 
-    // 自分が受け取ったリクエスト
-    static async getRequestsFromOthers(userId: number) {
+    // リクエスト紐づくポスト画像の取得
+    static async getRequestPostImages(
+        postIds: number[]
+    ): Promise<RowDataPacket[]> {
+        if (postIds.length === 0) {
+            return [];
+        }
+    
         try {
-            const [rows] = await db.execute(`
+            const placeholders = postIds.map(() => '?').join(',');
+    
+            const [rows] = await db.execute<RowDataPacket[]>(
+                `
                 SELECT
+                    post_id,
+                    image_url,
+                    \`order\` AS image_order
+                FROM post_images
+                WHERE post_id IN (${placeholders})
+                ORDER BY post_id ASC, \`order\` ASC
+                `,
+                postIds
+            );
+    
+            return rows;
+        } catch (error) {
+            console.error('Error fetching request post images:', error);
+            throw new Error('募集投稿画像の取得に失敗しました');
+        }
+    }
+
+
+    // 自分が受け取ったリクエスト
+    static async getRequestsFromOthers(
+        userId: number
+    ): Promise<RowDataPacket[]> {
+        try {
+            const [rows] = await db.execute<RowDataPacket[]>(
+                `
+                SELECT
+                    p.id AS post_id,
                     p.date AS post_date,
+                    p.message AS post_message,
+                    p.created_at AS post_created_at,
                     r.id AS request_id,
                     r.message AS request_message,
                     r.created_at AS request_created_at,
@@ -185,12 +236,21 @@ export class RequestRepository {
                 FROM requests r
                 JOIN posts p ON r.post_id = p.id
                 JOIN user_profile u ON r.from_user_id = u.user_id
-                LEFT JOIN user_profile_image pi ON r.from_user_id = pi.user_id AND pi.order = 1
+                LEFT JOIN (
+                    SELECT
+                        user_id,
+                        MIN(image_url) AS image_url
+                    FROM user_profile_image
+                    WHERE \`order\` = 1
+                    GROUP BY user_id
+                ) pi ON r.from_user_id = pi.user_id
                 WHERE r.to_user_id = ?
                     AND p.status = 'active'
                     AND r.status = 'pending'
                 ORDER BY r.created_at DESC
-            `, [userId]);
+                `,
+                [userId]
+            );
 
             return rows;
         } catch (error) {

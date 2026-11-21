@@ -5,7 +5,6 @@ import { verifySessionFromRequest } from '@/lib/firebase-session';
 import { UserRepository } from '@/repositories/UserRepository';
 import { RequestRepository } from '@/repositories/RequestRepository';
 import { UserActivityRepository } from '@/repositories/UserActivityRepository';
-import { SnsNotificationsRepository } from '@/repositories/SnsNotificationsRepository';
 
 export async function GET() {
     try {
@@ -32,12 +31,9 @@ export async function GET() {
         const incoming = await RequestRepository.getUnreadIncomingRequests(user.user_id, lastCheckedRequests);
         const accepted = await RequestRepository.getUnreadAcceptedRequests(user.user_id, lastCheckedAccepted);
 
-        // 未読 DM 通知取得
-        const dmNotifications = await SnsNotificationsRepository.getUnreadByToUserId(user.user_id, lastCheckedDm);
         return NextResponse.json({
             pendingRequests: incoming,
             acceptedRequests: accepted,
-            dmNotifications: dmNotifications,
         });
     } catch (error) {
         console.error(error);

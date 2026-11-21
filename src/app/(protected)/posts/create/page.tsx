@@ -9,6 +9,15 @@ import {
 } from 'react';
 import { useRouter } from 'next/navigation';
 
+import {
+    CalendarDaysIcon,
+    BoltIcon,
+    PhotoIcon,
+    XMarkIcon,
+    PlusCircleIcon,
+    InformationCircleIcon,
+} from '@heroicons/react/24/outline';
+
 type FieldErrors = {
     message?: string;
     date?: string;
@@ -27,6 +36,7 @@ export default function CreatePostPage() {
     const [message, setMessage] = useState('');
     const [isImmediate, setIsImmediate] = useState(false);
     const [images, setImages] = useState<File[]>([]);
+    const [imagePreviews, setImagePreviews] = useState<string[]>([]);
     const [errors, setErrors] = useState<FieldErrors>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -34,8 +44,10 @@ export default function CreatePostPage() {
     const numPeople = 2;
     const locationExample = '博多駅周辺';
 
-    const exampleMessage = `例: 場所: ${locationExample}、人数: ${numPeople}人、年齢:  ${userAge}代前半`;
+    const exampleMessage =
+        `例: 場所: ${locationExample}、人数: ${numPeople}人、年齢: ${userAge}代前半`;
 
+    // 今すぐ合流の場合は本日の日付を設定
     useEffect(() => {
         if (isImmediate) {
             const today = new Date();
@@ -49,19 +61,40 @@ export default function CreatePostPage() {
         }
     }, [isImmediate]);
 
+    // 画像プレビュー生成と後片付け
+    useEffect(() => {
+        const urls = images.map((img) => URL.createObjectURL(img));
+
+        setImagePreviews(urls);
+
+        return () => {
+            urls.forEach((url) => URL.revokeObjectURL(url));
+        };
+    }, [images]);
+
+    // 画像選択
     const handleImageChange = (
         e: ChangeEvent<HTMLInputElement>
     ) => {
         if (e.target.files) {
             setImages(Array.from(e.target.files).slice(0, 2));
         }
+
+        e.target.value = '';
     };
 
+    // 画像削除
+    const handleRemoveImage = (index: number) => {
+        setImages((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    // 投稿処理
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setErrors(null);
 
         if (isSubmitting) return;
+
         setIsSubmitting(true);
 
         try {
@@ -85,13 +118,13 @@ export default function CreatePostPage() {
 
             const data: ApiResponse = await res.json();
 
-            // KYC
+            // 本人確認
             if (data.code === 'KYC_REQUIRED') {
                 router.push('/kyc');
                 return;
             }
 
-            // Validation Errors
+            // バリデーションエラー
             if (!res.ok) {
                 switch (data.code) {
                     case 'MESSAGE_REQUIRED':
@@ -132,6 +165,7 @@ export default function CreatePostPage() {
             }
 
             router.push('/dashboard');
+
         } catch (e: unknown) {
             setErrors({
                 common:
@@ -145,179 +179,299 @@ export default function CreatePostPage() {
     };
 
     return (
-        <main className="max-w-md mx-auto p-6">
-            <h1 className="text-2xl font-bold mb-6">
-                新規投稿
-            </h1>
+        <main className="min-h-screen bg-slate-50 px-4 pt-6 pb-24 text-slate-900 sm:px-6">
 
-            {/* Error */}
-            {errors && (
-                <div className="mb-4 p-4 rounded-lg border border-red-300 bg-red-50 text-red-700 whitespace-pre-line">
-                    {errors.date && (
-                        <p className="text-sm mb-1">
-                            ・{errors.date}
-                        </p>
-                    )}
+            <div className="mx-auto max-w-md space-y-6">
 
-                    {errors.message && (
-                        <p className="text-sm mb-1">
-                            ・{errors.message}
-                        </p>
-                    )}
+                {/* ページタイトル */}
+                <section>
+                    <h1 className="text-2xl font-bold tracking-tight">
+                        合コンを募集する
+                    </h1>
 
-                    {errors.common && (
-                        <p className="font-semibold text-sm">
-                            {errors.common}
-                        </p>
-                    )}
-                </div>
-            )}
+                    <p className="mt-2 text-sm text-slate-500">
+                        一緒に楽しめるグループを募集しましょう
+                    </p>
+                </section>
 
-            <form
-                onSubmit={handleSubmit}
-                className="space-y-4"
-            >
-                {/* Date */}
-                <div>
-                    <label className="block mb-1 font-medium">
-                        日付
-                    </label>
+                {/* 入力フォーム */}
+                <form
+                    onSubmit={handleSubmit}
+                    className="space-y-5"
+                >
 
-                    <input
-                        type="date"
-                        value={date}
-                        onChange={(e) =>
-                            setDate(e.target.value)
-                        }
-                        className={`w-full border rounded p-2 ${
-                            isImmediate
-                                ? 'bg-gray-100 cursor-not-allowed'
-                                : ''
-                        }`}
-                        readOnly={isImmediate}
-                    />
-                </div>
-
-                {/* Immediate */}
-                <div>
-                    <div className="flex items-center space-x-2">
-                        <input
-                            type="checkbox"
-                            checked={isImmediate}
-                            onChange={() =>
-                                setIsImmediate(!isImmediate)
-                            }
-                            id="immediate"
-                        />
-
-                        <label
-                            htmlFor="immediate"
-                            className="font-medium"
+                    {/* エラー表示 */}
+                    {errors && (
+                        <div
+                            role="alert"
+                            className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
                         >
-                            今すぐ合流
-                        </label>
-                    </div>
+                            {errors.date && (
+                                <p className="mb-1">
+                                    ・{errors.date}
+                                </p>
+                            )}
 
-                    <p className="ml-6 mt-1 text-sm text-green-700">
-                        ※ 今すぐ合流できる募集として、相手側の検索結果で見つけてもらいやすくなります。
-                    </p>
-                </div>
+                            {errors.message && (
+                                <p className="mb-1">
+                                    ・{errors.message}
+                                </p>
+                            )}
 
-                {/* Message */}
-                <div>
-                    <label className="block mb-1 font-medium">
-                        メッセージ
-                    </label>
-
-                    <p className="text-sm text-gray-500 mb-1">
-                        検索機能があるため、場所・人数・自分たちの年齢を書くとリクエストが届きやすくなります
-                    </p>
-
-                    <textarea
-                        value={message}
-                        onChange={(e) =>
-                            setMessage(e.target.value)
-                        }
-                        placeholder={exampleMessage}
-                        maxLength={255}
-                        rows={4}
-                        className="w-full border rounded p-2 resize-none"
-                        required
-                    />
-                </div>
-
-                {/* Images */}
-                <div>
-                    <label className="block mb-1 font-medium">
-                        画像（最大2枚）
-                    </label>
-
-                    <p className="text-sm text-gray-500 mb-2">
-                        添付ファイルは基本的に正方形で表示されます
-                    </p>
-
-                    <label className="block w-full bg-gray-200 text-gray-700 py-3 text-center rounded-lg cursor-pointer hover:bg-gray-300 transition">
-                        画像を選択
-
-                        <input
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            onChange={handleImageChange}
-                            className="hidden"
-                            disabled={images.length >= 2}
-                        />
-                    </label>
-
-                    {images.length > 0 && (
-                        <div className="mt-2 flex gap-2 overflow-x-auto">
-                            {images.map((img, idx) => (
-                                <div
-                                    key={idx}
-                                    className="relative w-24 h-24 flex-shrink-0"
-                                >
-                                    <img
-                                        src={URL.createObjectURL(img)}
-                                        alt={`preview-${idx}`}
-                                        className="w-full h-full object-cover rounded"
-                                    />
-
-                                    <button
-                                        type="button"
-                                        className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center"
-                                        onClick={() =>
-                                            setImages(
-                                                images.filter(
-                                                    (_, i) => i !== idx
-                                                )
-                                            )
-                                        }
-                                    >
-                                        ×
-                                    </button>
-                                </div>
-                            ))}
+                            {errors.common && (
+                                <p className="font-medium whitespace-pre-line">
+                                    {errors.common}
+                                </p>
+                            )}
                         </div>
                     )}
-                </div>
 
-                {/* Submit */}
-                <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className={`w-full text-white font-semibold py-3 rounded-xl shadow-md transition
-                        ${
-                            isSubmitting
-                                ? 'bg-green-300 cursor-not-allowed opacity-50'
-                                : 'bg-green-500 hover:bg-green-600'
-                        }
-                    `}
-                >
-                    {isSubmitting
-                        ? '送信中...'
-                        : '投稿する'}
-                </button>
-            </form>
+                    {/* 開催日 */}
+                    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
+                        <div className="mb-4 flex items-center gap-2">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                                <CalendarDaysIcon className="h-5 w-5" />
+                            </div>
+
+                            <div>
+                                <h2 className="font-bold">
+                                    開催日
+                                </h2>
+                                <p className="text-xs text-slate-500">
+                                    合コンを開催する日を選択
+                                </p>
+                            </div>
+                        </div>
+
+                        <label
+                            htmlFor="date"
+                            className="mb-2 block text-sm font-semibold text-slate-700"
+                        >
+                            日付
+                        </label>
+
+                        <input
+                            id="date"
+                            type="date"
+                            value={date}
+                            onChange={(e) => setDate(e.target.value)}
+                            readOnly={isImmediate}
+                            className={`w-full rounded-xl border px-4 py-3 text-base outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${
+                                isImmediate
+                                    ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500'
+                                    : 'border-slate-300 bg-white'
+                            }`}
+                        />
+
+                        {errors?.date && (
+                            <p className="mt-2 text-sm text-red-600">
+                                {errors.date}
+                            </p>
+                        )}
+
+                        {/* 今すぐ合流 */}
+                        <label
+                            htmlFor="immediate"
+                            className={`mt-4 flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition ${
+                                isImmediate
+                                    ? 'border-blue-400 bg-blue-50'
+                                    : 'border-slate-200 bg-white hover:bg-slate-50'
+                            }`}
+                        >
+                            <input
+                                id="immediate"
+                                type="checkbox"
+                                checked={isImmediate}
+                                onChange={() =>
+                                    setIsImmediate(!isImmediate)
+                                }
+                                className="h-5 w-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+
+                            <div className="flex flex-1 items-center gap-2">
+                                <BoltIcon className="h-5 w-5 text-blue-600" />
+
+                                <div>
+                                    <p className="font-semibold text-slate-800">
+                                        今すぐ合流
+                                    </p>
+                                    <p className="mt-1 text-xs text-slate-500">
+                                        今日開催できる募集にする
+                                    </p>
+                                </div>
+                            </div>
+                        </label>
+
+                        <div className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-slate-500">
+                            <InformationCircleIcon className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
+                            <p>
+                                今すぐ合流を選ぶと、本日の日付が自動設定されます。
+                            </p>
+                        </div>
+
+                    </section>
+
+                    {/* メッセージ */}
+                    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
+                        <div className="mb-4">
+                            <h2 className="font-bold">
+                                募集メッセージ
+                            </h2>
+                            <p className="mt-1 text-xs text-slate-500">
+                                相手に伝えたい内容を入力してください
+                            </p>
+                        </div>
+
+                        <label
+                            htmlFor="message"
+                            className="mb-2 block text-sm font-semibold text-slate-700"
+                        >
+                            メッセージ
+                        </label>
+
+                        <p className="mb-3 text-xs leading-relaxed text-slate-500">
+                            場所・人数・年齢などを記載すると、条件に合うグループから見つけてもらいやすくなります。
+                        </p>
+
+                        <textarea
+                            id="message"
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            placeholder={exampleMessage}
+                            maxLength={255}
+                            rows={5}
+                            required
+                            className="w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3 text-base leading-relaxed outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                        />
+
+                        <div className="mt-2 flex justify-between text-xs">
+                            {errors?.message ? (
+                                <p className="text-red-600">
+                                    {errors.message}
+                                </p>
+                            ) : (
+                                <p className="text-slate-400">
+                                    最大255文字
+                                </p>
+                            )}
+
+                            <p className="text-slate-400">
+                                {message.length}/255
+                            </p>
+                        </div>
+
+                    </section>
+
+                    {/* 画像 */}
+                    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
+                        <div className="mb-4 flex items-center gap-2">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                                <PhotoIcon className="h-5 w-5" />
+                            </div>
+
+                            <div>
+                                <h2 className="font-bold">
+                                    募集画像
+                                </h2>
+                                <p className="text-xs text-slate-500">
+                                    グループの雰囲気を伝えよう
+                                </p>
+                            </div>
+                        </div>
+
+                        <p className="mb-3 text-xs text-slate-500">
+                            画像は最大2枚まで登録できます。
+                        </p>
+
+                        <label
+                            htmlFor="images"
+                            className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center transition hover:border-blue-400 hover:bg-blue-50"
+                        >
+                            <PlusCircleIcon className="mb-2 h-8 w-8 text-blue-600" />
+
+                            <span className="text-sm font-semibold text-blue-600">
+                                画像を選択する
+                            </span>
+
+                            <span className="mt-1 text-xs text-slate-400">
+                                {images.length}/2 枚選択中
+                            </span>
+
+                            <input
+                                id="images"
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                onChange={handleImageChange}
+                                className="hidden"
+                            />
+                        </label>
+
+                        {/* プレビュー */}
+                        {images.length > 0 && (
+                            <div className="mt-4 grid grid-cols-2 gap-3">
+                                {images.map((img, idx) => (
+                                    <div
+                                        key={`${img.name}-${idx}`}
+                                        className="relative aspect-square overflow-hidden rounded-xl border border-slate-200"
+                                    >
+                                        <img
+                                            src={imagePreviews[idx]}
+                                            alt={`募集画像 ${idx + 1}`}
+                                            className="h-full w-full object-cover"
+                                        />
+
+                                        <button
+                                            type="button"
+                                            aria-label={`画像${idx + 1}を削除`}
+                                            onClick={() =>
+                                                handleRemoveImage(idx)
+                                            }
+                                            className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-slate-900/70 text-white transition hover:bg-red-600"
+                                        >
+                                            <XMarkIcon className="h-5 w-5" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                    </section>
+
+                    {/* 投稿ボタン */}
+                    <div className="space-y-3 pt-2">
+
+                        <button
+                            type="submit"
+                            disabled={isSubmitting}
+                            className={`flex w-full items-center justify-center gap-2 rounded-xl py-4 text-base font-bold text-white shadow-md transition active:scale-[0.98] ${
+                                isSubmitting
+                                    ? 'cursor-not-allowed bg-blue-300'
+                                    : 'bg-blue-600 shadow-blue-600/20 hover:bg-blue-700'
+                            }`}
+                        >
+                            {isSubmitting ? (
+                                '送信中...'
+                            ) : (
+                                <>
+                                    <PlusCircleIcon className="h-5 w-5" />
+                                    募集を投稿する
+                                </>
+                            )}
+                        </button>
+
+                        <p className="text-center text-xs text-slate-400">
+                            入力内容を確認してから投稿してください
+                        </p>
+
+                    </div>
+
+                </form>
+
+            </div>
         </main>
     );
 }

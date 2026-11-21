@@ -1,9 +1,22 @@
+
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import ConversationModalFromMatching from '@/app/components/ui/ConversationModalFromMatching';
+
+import MatchingConversation from '@/app/components/ui/MatchingConversation';
 import ProfileModal from '@/app/components/ui/ProfileModal';
+
+import {
+    ArrowLeftIcon,
+    EllipsisVerticalIcon,
+    ChatBubbleLeftRightIcon,
+    UserCircleIcon,
+    LinkIcon,
+    FlagIcon,
+    XMarkIcon,
+    ChevronRightIcon,
+} from '@heroicons/react/24/outline';
 
 type MatchedUser = {
     match_id: number;
@@ -11,8 +24,8 @@ type MatchedUser = {
     matched_at: string;
     match_message: string | null;
 
-    dm_notify_message: string | null;
-    dm_notify_sent_at?: string | null;
+    last_message: string | null;
+    last_message_at: string | null;
 
     user_display_name: string;
     user_profile_image: string | null;
@@ -26,27 +39,40 @@ type SNSAccounts = {
     instagram: string;
 };
 
+// =========================
+// マッチング重複除去
+// =========================
+function uniqueMatchings(list: MatchedUser[]): MatchedUser[] {
+    const map = new Map<number, MatchedUser>();
+
+    for (const user of list) {
+        if (!map.has(user.match_id)) {
+            map.set(user.match_id, user);
+        }
+    }
+
+    return Array.from(map.values());
+}
+
 export default function MatchingsPageClient() {
-    const [matchingsFromMe, setMatchingsFromMe] = useState<MatchedUser[]>([]);
-    const [matchingsFromOthers, setMatchingsFromOthers] = useState<MatchedUser[]>([]);
+    const [matchings, setMatchings] = useState<MatchedUser[]>([]);
+
     const [error, setError] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'fromMe' | 'fromOthers'>('fromOthers');
+    const [loading, setLoading] = useState(true);
+
     const [snsAccountsMap, setSnsAccountsMap] = useState<Record<number, SNSAccounts>>({});
     const [loadingSNS, setLoadingSNS] = useState<number | null>(null);
-    const [loading, setLoading] = useState<boolean>(true);
-
-    const [openConversationId, setOpenConversationId] = useState<number | null>(null);
     const [openSNSId, setOpenSNSId] = useState<number | null>(null);
-    const [showDMModal, setShowDMModal] = useState<number | null>(null);
 
     const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
-    // =========================
-    // 追加：キャンセル処理状態
-    // =========================
+    const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
+    const [openMenu, setOpenMenu] = useState(false);
     const [cancelingId, setCancelingId] = useState<number | null>(null);
-    const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+
+    // 詳細画面の履歴管理
+    const detailHistoryPushed = useRef(false);
 
     const searchParams = useSearchParams();
     const router = useRouter();
@@ -54,32 +80,118 @@ export default function MatchingsPageClient() {
     const highlightId = searchParams.get('highlight');
     const highlightIdNum = highlightId ? Number(highlightId) : null;
 
+    // =========================
+    // マッチング情報取得
+    // =========================
     useEffect(() => {
         async function fetchMatchings() {
             try {
                 setLoading(true);
+                setError(null);
+
                 const [resFromMe, resFromOthers] = await Promise.all([
                     fetch('/api/matchings/getFromMe'),
                     fetch('/api/matchings/getFromOthers'),
                 ]);
+
                 const [dataFromMe, dataFromOthers] = await Promise.all([
                     resFromMe.json(),
                     resFromOthers.json(),
                 ]);
 
-                if (resFromMe.ok) setMatchingsFromMe(dataFromMe.matchingsList || []);
-                if (resFromOthers.ok) setMatchingsFromOthers(dataFromOthers.matchingsList || []);
-                if (!resFromMe.ok || !resFromOthers.ok) throw new Error();
+                if (!resFromMe.ok || !resFromOthers.ok) {
+                    throw new Error('マッチング情報の取得に失敗しました');
+                }
+
+                // 2つの一覧を統合
+                const combinedList: MatchedUser[] = [
+                    ...(dataFromMe.matchingsList || []),
+                    ...(dataFromOthers.matchingsList || []),
+                ];
+
+                // 重複除去 + 最終やりとり日時の降順
+                const sortedList = uniqueMatchings(combinedList).sort(
+                    (a, b) => {
+                        const dateA = new Date(
+                            a.last_message_at || a.matched_at
+                        ).getTime();
+
+                        const dateB = new Date(
+                            b.last_message_at || b.matched_at
+                        ).getTime();
+
+                        return dateB - dateA;
+                    }
+                );
+
+                setMatchings(sortedList);
+
             } catch {
                 setError('マッチング情報の取得に失敗しました');
             } finally {
                 setLoading(false);
             }
         }
+
         fetchMatchings();
     }, []);
 
-    const currentList = activeTab === 'fromMe' ? matchingsFromMe : matchingsFromOthers;
+    // =========================
+    // スマホ本体の戻る・進むボタン対応
+    // =========================
+    useEffect(() => {
+        const handlePopState = (event: PopStateEvent) => {
+            const historyMatchId = Number(
+                event.state?.matchingDetail
+            );
+
+            if (
+                Number.isInteger(historyMatchId) &&
+                historyMatchId > 0
+            ) {
+                detailHistoryPushed.current = true;
+                setSelectedMatchId(historyMatchId);
+            } else {
+                detailHistoryPushed.current = false;
+                setSelectedMatchId(null);
+            }
+
+            setOpenMenu(false);
+            setOpenSNSId(null);
+        };
+
+        window.addEventListener('popstate', handlePopState);
+
+        return () => {
+            window.removeEventListener('popstate', handlePopState);
+        };
+    }, []);
+
+    // =========================
+    // 選択中のマッチング
+    // =========================
+    const selectedMatch = matchings.find(
+        user => user.match_id === selectedMatchId
+    );
+
+    // =========================
+    // マッチング詳細を開く
+    // =========================
+    function handleOpenMatching(matchId: number) {
+        if (selectedMatchId !== null) return;
+
+        window.history.pushState(
+            {
+                ...(window.history.state ?? {}),
+                matchingDetail: matchId,
+            },
+            '',
+            window.location.href
+        );
+
+        detailHistoryPushed.current = true;
+        setSelectedMatchId(matchId);
+    }
 
     // =========================
     // KYCチェック
@@ -87,6 +199,11 @@ export default function MatchingsPageClient() {
     const checkKyc = async (): Promise<boolean> => {
         try {
             const res = await fetch('/api/kyc/userVerification');
+
+            if (!res.ok) {
+                throw new Error();
+            }
+
             const data = await res.json();
 
             if (!data.verified) {
@@ -99,6 +216,15 @@ export default function MatchingsPageClient() {
             router.push('/kyc');
             return false;
         }
+    };
+
+    // =========================
+    // 相手のユーザーID取得
+    // =========================
+    const getTargetUserId = (user: MatchedUser) => {
+        return user.from_user_id === user.self_user_id
+            ? user.to_user_id
+            : user.from_user_id;
     };
 
     // =========================
@@ -116,11 +242,15 @@ export default function MatchingsPageClient() {
         setLoadingSNS(user.match_id);
 
         try {
-            const targetUserId =
-                user.from_user_id === user.self_user_id ? user.to_user_id : user.from_user_id;
+            const targetUserId = getTargetUserId(user);
 
-            const res = await fetch(`/api/user/${targetUserId}/getSnsAccounts`);
-            if (!res.ok) throw new Error();
+            const res = await fetch(
+                `/api/user/${targetUserId}/getSnsAccounts`
+            );
+
+            if (!res.ok) {
+                throw new Error();
+            }
 
             const data: SNSAccounts = await res.json();
 
@@ -138,27 +268,23 @@ export default function MatchingsPageClient() {
     }
 
     // =========================
-    // DMモーダル
-    // =========================
-    async function handleOpenDMModal(matchId: number) {
-        const ok = await checkKyc();
-        if (!ok) return;
-
-        setShowDMModal(matchId);
-    }
-
-    // =========================
-    // 追加：マッチングキャンセル
+    // マッチングキャンセル
     // =========================
     async function handleCancelMatch(matchId: number) {
-        if (!confirm('このマッチングをキャンセルしますか？')) return;
+        if (!confirm('このマッチングをキャンセルしますか？')) {
+            return;
+        }
 
         setCancelingId(matchId);
+        setOpenMenu(false);
 
         try {
-            const res = await fetch(`/api/matchings/${matchId}/cancel`, {
-                method: 'POST',
-            });
+            const res = await fetch(
+                `/api/matchings/${matchId}/cancel`,
+                {
+                    method: 'POST',
+                }
+            );
 
             const data = await res.json();
 
@@ -180,21 +306,25 @@ export default function MatchingsPageClient() {
                         break;
                     default:
                         errorMessage = data.error || errorMessage;
+                        break;
                 }
 
                 throw new Error(errorMessage);
             }
 
-            // UI即時反映（UX維持）
-            setMatchingsFromMe(prev =>
-                prev.filter(m => m.match_id !== matchId)
+            setMatchings(prev =>
+                prev.filter(user => user.match_id !== matchId)
             );
 
-            setMatchingsFromOthers(prev =>
-                prev.filter(m => m.match_id !== matchId)
-            );
+            // 詳細画面の履歴も戻す
+            if (detailHistoryPushed.current) {
+                window.history.back();
+            } else {
+                setSelectedMatchId(null);
+            }
 
             alert('キャンセルしました');
+
         } catch (e) {
             alert((e as Error).message);
         } finally {
@@ -202,227 +332,334 @@ export default function MatchingsPageClient() {
         }
     }
 
+    // =========================
+    // 日時表示
+    // =========================
     function formatDateSafe(dateStr?: string | null) {
         if (!dateStr) return '';
-        const d = new Date(dateStr);
-        return isNaN(d.getTime()) ? '-' : d.toLocaleString('ja-JP');
+
+        const date = new Date(dateStr);
+
+        return isNaN(date.getTime())
+            ? '-'
+            : date.toLocaleString('ja-JP');
     }
 
-    return (
-        <div className="p-6 max-w-md mx-auto">
-            <h1 className="text-2xl font-semibold mb-4">
-                マッチングリスト
-            </h1>
+    // =========================
+    // 一覧のプレビュー表示
+    // =========================
+    function getMessagePreview(user: MatchedUser) {
+        return user.last_message
+            || user.match_message
+            || 'マッチングが成立しました';
+    }
 
-            {error && <p className="text-red-500 mb-4">{error}</p>}
+    // =========================
+    // プレビュー日時
+    // =========================
+    function getMessageDate(user: MatchedUser) {
+        return user.last_message_at || user.matched_at;
+    }
 
-            {/* タブ */}
-            <div className="flex mb-6 border-b border-gray-300">
-                <button
-                    onClick={() => setActiveTab('fromMe')}
-                    className={`flex-1 py-2 ${
-                        activeTab === 'fromMe'
-                            ? 'border-b-2 border-blue-600 font-bold'
-                            : 'text-gray-500'
-                    }`}
-                >
-                    自分から
-                </button>
+    // =========================
+    // プロフィール表示
+    // =========================
+    function handleOpenProfile(user: MatchedUser) {
+        setSelectedUserId(getTargetUserId(user));
+        setIsProfileModalOpen(true);
+    }
 
-                <button
-                    onClick={() => setActiveTab('fromOthers')}
-                    className={`flex-1 py-2 ${
-                        activeTab === 'fromOthers'
-                            ? 'border-b-2 border-blue-600 font-bold'
-                            : 'text-gray-500'
-                    }`}
-                >
-                    相手から
-                </button>
-            </div>
+    // =========================
+    // 一覧に戻る
+    // =========================
+    function handleBackToList() {
+        setOpenMenu(false);
+        setOpenSNSId(null);
 
-            {loading ? (
-                <p className="text-gray-500">読み込み中...</p>
-            ) : (
-                <ul className="space-y-4">
-                    {currentList.length === 0 ? (
-                        <li className="text-gray-500">
-                            マッチングはありません
-                        </li>
+        if (detailHistoryPushed.current) {
+            window.history.back();
+        } else {
+            setSelectedMatchId(null);
+        }
+    }
+
+    // =========================
+    // 一覧画面
+    // =========================
+    if (!selectedMatchId || !selectedMatch) {
+        return (
+            <div className="min-h-screen bg-slate-50">
+                <div className="mx-auto max-w-lg px-4 py-6">
+
+                    {/* ヘッダー */}
+                    <div className="mb-6">
+                        <h1 className="text-2xl font-bold text-slate-900">
+                            マッチング
+                        </h1>
+                        <p className="mt-1 text-sm text-slate-500">
+                            マッチングした相手とのやりとりを確認できます
+                        </p>
+                    </div>
+
+                    {/* エラー */}
+                    {error && (
+                        <div className="mb-4 rounded-xl border border-red-100 bg-red-50 p-4">
+                            <p className="text-sm text-red-600">
+                                {error}
+                            </p>
+                        </div>
+                    )}
+
+                    {/* 読み込み中 */}
+                    {loading ? (
+                        <div className="py-16 text-center">
+                            <div className="mx-auto mb-3 h-7 w-7 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" />
+                            <p className="text-sm text-slate-500">
+                                読み込み中...
+                            </p>
+                        </div>
+                    ) : matchings.length === 0 ? (
+                        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-14 text-center shadow-sm">
+                            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
+                                <ChatBubbleLeftRightIcon className="h-7 w-7 text-slate-400" />
+                            </div>
+
+                            <p className="font-semibold text-slate-700">
+                                マッチングはありません
+                            </p>
+
+                            <p className="mt-2 text-sm text-slate-400">
+                                マッチングが成立すると、ここに表示されます
+                            </p>
+                        </div>
                     ) : (
-                        currentList.map(user => {
-                            const sns = snsAccountsMap[user.match_id];
-                            const isLoading = loadingSNS === user.match_id;
-                            const isSNSOpen = openSNSId === user.match_id;
-                            const isDMNotified = !!user.dm_notify_message;
-                            const isCanceling = cancelingId === user.match_id;
+                        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                            {matchings.map((user, index) => {
+                                const isHighlighted =
+                                    user.match_id === highlightIdNum;
 
-                            return (
-                                <li
-                                    key={user.match_id}
-                                    className={`p-4 border rounded-lg shadow-sm ${
-                                        user.match_id === highlightIdNum
-                                            ? 'border-red-500 bg-red-50'
-                                            : 'bg-white'
-                                    }`}
-                                >
-                                    {/* 画像 */}
-                                    <div className="w-full aspect-square mb-4 overflow-hidden rounded-lg">
-                                        {user.user_profile_image ? (
-                                            <img
-                                                src={user.user_profile_image}
-                                                alt={user.user_display_name}
-                                                className="w-full h-full object-cover"
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full bg-gray-300 flex items-center justify-center text-4xl text-white">
-                                                {user.user_display_name[0]}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* ユーザー名 + メニュー */}
-                                    <div className="flex justify-between items-start mb-4 relative">
-                                        <h2 className="text-lg font-semibold text-gray-900">
-                                            {user.user_display_name}
-                                        </h2>
-
-                                        <button
-                                            onClick={() =>
-                                                setOpenMenuId(
-                                                    openMenuId === user.match_id
-                                                        ? null
-                                                        : user.match_id
-                                                )
-                                            }
-                                            className="text-2xl leading-none px-2 text-gray-500"
-                                        >
-                                            ⋮
-                                        </button>
-
-                                        {openMenuId === user.match_id && (
-                                            <div className="absolute right-0 top-8 bg-white border rounded-lg shadow-lg z-20 min-w-[180px] overflow-hidden">
-                                                <button
-                                                    onClick={() =>
-                                                        router.push(
-                                                            `/reports?type=match&id=${user.match_id}`
-                                                        )
-                                                    }
-                                                    className="block w-full text-left px-4 py-3 hover:bg-gray-100"
-                                                >
-                                                    通報する
-                                                </button>
-
-                                                <button
-                                                    onClick={() => {
-                                                        setOpenMenuId(null);
-                                                        handleCancelMatch(user.match_id);
-                                                    }}
-                                                    disabled={isCanceling}
-                                                    className="block w-full text-left px-4 py-3 text-red-600 hover:bg-gray-100"
-                                                >
-                                                    {isCanceling
-                                                        ? 'キャンセル中...'
-                                                        : 'マッチングキャンセル'}
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* ボタン */}
-                                    <div className="space-y-2">
-                                        <button
-                                            onClick={() => setOpenConversationId(user.match_id)}
-                                            className="w-full py-2 bg-blue-500 text-white rounded"
-                                        >
-                                            やりとり
-                                        </button>
-
-                                        <button
-                                            onClick={() => {
-                                                const otherUserId =
-                                                    activeTab === 'fromOthers'
-                                                        ? user.from_user_id
-                                                        : user.to_user_id;
-
-                                                setSelectedUserId(otherUserId);
-                                                setIsProfileModalOpen(true);
-                                            }}
-                                            className="w-full py-2 bg-gray-500 text-white rounded"
-                                        >
-                                            プロフィール
-                                        </button>
-
-                                        <button
-                                            onClick={() => handleShowSNS(user)}
-                                            disabled={isLoading}
-                                            className="w-full py-2 bg-green-500 text-white rounded"
-                                        >
-                                            SNSアカウント表示
-                                        </button>
-
-                                        {!isDMNotified && (
-                                            <button
-                                                onClick={() => handleOpenDMModal(user.match_id)}
-                                                className="w-full py-2 bg-yellow-500 text-white rounded"
-                                            >
-                                                DM送信を相手に知らせる
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    {/* メッセージ */}
-                                    {user.match_message && (
-                                        <div className="mt-4 text-sm">
-                                            <p className="text-gray-500">
-                                                {formatDateSafe(user.matched_at)}
-                                            </p>
-
-                                            <p className="text-green-700 font-medium mt-1">
-                                                承諾メッセージ
-                                            </p>
-
-                                            <p>{user.match_message}</p>
-
-                                            {user.dm_notify_message && (
-                                                <div className="mt-2 text-sm">
-                                                    {user.dm_notify_sent_at && (
-                                                        <p className="text-gray-500">
-                                                            {formatDateSafe(user.dm_notify_sent_at)}
-                                                        </p>
-                                                    )}
-                                                    <p className="text-blue-600 font-medium mt-1">
-                                                        DM通知メッセージ
-                                                    </p>
-                                                    <p>{user.dm_notify_message}</p>
+                                return (
+                                    <button
+                                        key={user.match_id}
+                                        type="button"
+                                        onClick={() =>
+                                            handleOpenMatching(user.match_id)
+                                        }
+                                        className={`flex w-full items-center gap-3 px-4 py-4 text-left transition hover:bg-slate-50 ${
+                                            index !== matchings.length - 1
+                                                ? 'border-b border-slate-100'
+                                                : ''
+                                        } ${
+                                            isHighlighted
+                                                ? 'bg-blue-50'
+                                                : ''
+                                        }`}
+                                    >
+                                        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-slate-200">
+                                            {user.user_profile_image ? (
+                                                <img
+                                                    src={user.user_profile_image}
+                                                    alt={user.user_display_name}
+                                                    className="h-full w-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="flex h-full w-full items-center justify-center text-xl font-bold text-slate-500">
+                                                    {user.user_display_name?.charAt(0) || '?'}
                                                 </div>
                                             )}
                                         </div>
-                                    )}
 
-                                    {isSNSOpen && sns && (
-                                        <SNSModal sns={sns} onClose={() => setOpenSNSId(null)} />
-                                    )}
+                                        <div className="min-w-0 flex-1">
+                                            <div className="mb-1 flex items-center justify-between gap-2">
+                                                <p className="truncate font-semibold text-slate-900">
+                                                    {user.user_display_name}
+                                                </p>
 
-                                    {openConversationId === user.match_id && (
-                                        <ConversationModalFromMatching
-                                            matchId={user.match_id}
-                                            onClose={() => setOpenConversationId(null)}
-                                        />
-                                    )}
+                                                <span className="shrink-0 text-xs text-slate-400">
+                                                    {formatDateSafe(getMessageDate(user))}
+                                                </span>
+                                            </div>
 
-                                    {showDMModal === user.match_id && (
-                                        <DMNotifyModal
-                                            matchId={user.match_id}
-                                            onClose={() => setShowDMModal(null)}
-                                        />
-                                    )}
-                                </li>
-                            );
-                        })
+                                            <p className="truncate text-sm text-slate-500">
+                                                {getMessagePreview(user)}
+                                            </p>
+                                        </div>
+
+                                        <ChevronRightIcon className="h-5 w-5 shrink-0 text-slate-300" />
+                                    </button>
+                                );
+                            })}
+                        </div>
                     )}
-                </ul>
-            )}
+                </div>
+
+                <ProfileModal
+                    userId={selectedUserId}
+                    source="matches"
+                    isOpen={isProfileModalOpen}
+                    onClose={() => setIsProfileModalOpen(false)}
+                />
+            </div>
+        );
+    }
+
+    // =========================
+    // マッチング詳細画面
+    // =========================
+    const sns = snsAccountsMap[selectedMatch.match_id];
+    const isSNSOpen = openSNSId === selectedMatch.match_id;
+    const isLoadingSNS = loadingSNS === selectedMatch.match_id;
+    const isCanceling = cancelingId === selectedMatch.match_id;
+
+    return (
+        <div className="min-h-screen bg-slate-50">
+            <div className="mx-auto max-w-lg">
+
+                {/* 詳細ヘッダー */}
+                <div className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={handleBackToList}
+                            aria-label="一覧に戻る"
+                            className="rounded-full p-2 text-slate-600 transition hover:bg-slate-100"
+                        >
+                            <ArrowLeftIcon className="h-5 w-5" />
+                        </button>
+
+                        <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-slate-200">
+                            {selectedMatch.user_profile_image ? (
+                                <img
+                                    src={selectedMatch.user_profile_image}
+                                    alt={selectedMatch.user_display_name}
+                                    className="h-full w-full object-cover"
+                                />
+                            ) : (
+                                <div className="flex h-full w-full items-center justify-center font-bold text-slate-500">
+                                    {selectedMatch.user_display_name?.charAt(0) || '?'}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                            <p className="truncate font-bold text-slate-900">
+                                {selectedMatch.user_display_name}
+                            </p>
+                            <p className="text-xs text-green-600">
+                                マッチング成立
+                            </p>
+                        </div>
+
+                        <div className="relative">
+                            <button
+                                type="button"
+                                onClick={() => setOpenMenu(prev => !prev)}
+                                aria-label="メニュー"
+                                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100"
+                            >
+                                <EllipsisVerticalIcon className="h-6 w-6" />
+                            </button>
+
+                            {openMenu && (
+                                <>
+                                    <button
+                                        type="button"
+                                        aria-label="メニューを閉じる"
+                                        className="fixed inset-0 z-40 cursor-default"
+                                        onClick={() => setOpenMenu(false)}
+                                    />
+
+                                    <div className="absolute right-0 top-11 z-50 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setOpenMenu(false);
+                                                router.push(
+                                                    `/reports?type=match&id=${selectedMatch.match_id}`
+                                                );
+                                            }}
+                                            className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                                        >
+                                            <FlagIcon className="h-5 w-5 text-slate-400" />
+                                            通報する
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                handleCancelMatch(selectedMatch.match_id)
+                                            }
+                                            disabled={isCanceling}
+                                            className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                                        >
+                                            <XMarkIcon className="h-5 w-5" />
+                                            {isCanceling
+                                                ? 'キャンセル中...'
+                                                : 'マッチングキャンセル'}
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="space-y-4 px-4 py-5">
+
+                    {/* 共通トークコンポーネント */}
+                    <MatchingConversation
+                        matchId={selectedMatch.match_id}
+                    />
+
+                    {/* 相手とのアクション */}
+                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        <div className="border-b border-slate-100 px-4 py-3">
+                            <h2 className="text-sm font-bold text-slate-800">
+                                相手の情報・連絡
+                            </h2>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => handleOpenProfile(selectedMatch)}
+                            className="flex w-full items-center gap-3 border-b border-slate-100 px-4 py-4 text-left transition hover:bg-slate-50"
+                        >
+                            <UserCircleIcon className="h-6 w-6 text-slate-500" />
+
+                            <span className="flex-1 text-sm font-medium text-slate-700">
+                                プロフィールを見る
+                            </span>
+
+                            <ChevronRightIcon className="h-5 w-5 text-slate-300" />
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => handleShowSNS(selectedMatch)}
+                            disabled={isLoadingSNS}
+                            className="flex w-full items-center gap-3 px-4 py-4 text-left transition hover:bg-slate-50 disabled:opacity-50"
+                        >
+                            <LinkIcon className="h-6 w-6 text-slate-500" />
+
+                            <span className="flex-1 text-sm font-medium text-slate-700">
+                                {isLoadingSNS
+                                    ? 'SNSアカウント取得中...'
+                                    : 'SNSアカウントを表示'}
+                            </span>
+
+                            <ChevronRightIcon className="h-5 w-5 text-slate-300" />
+                        </button>
+                    </div>
+
+                    {/* SNS表示済みの場合 */}
+                    {isSNSOpen && sns && (
+                        <SNSModal
+                            sns={sns}
+                            onClose={() => setOpenSNSId(null)}
+                        />
+                    )}
+                </div>
+            </div>
 
             <ProfileModal
                 userId={selectedUserId}
@@ -435,148 +672,90 @@ export default function MatchingsPageClient() {
 }
 
 /* ---------- SNS Modal ---------- */
-function SNSModal({ sns, onClose }: { sns: SNSAccounts; onClose: () => void }) {
+function SNSModal({
+    sns,
+    onClose,
+}: {
+    sns: SNSAccounts;
+    onClose: () => void;
+}) {
     const hasTwitter = !!sns.twitter;
     const hasInstagram = !!sns.instagram;
 
-    if (!hasTwitter && !hasInstagram) return null;
+    if (!hasTwitter && !hasInstagram) {
+        return null;
+    }
 
     return (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-            <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-4">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold">SNSアカウント</h3>
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-                        ✕
+        <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 px-4 py-6 backdrop-blur-sm"
+            onMouseDown={e => {
+                if (e.target === e.currentTarget) {
+                    onClose();
+                }
+            }}
+        >
+            <div
+                role="dialog"
+                aria-modal="true"
+                className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl"
+            >
+                <div className="mb-5 flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-slate-900">
+                        SNSアカウント
+                    </h3>
+
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        aria-label="閉じる"
+                        className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                    >
+                        <XMarkIcon className="h-5 w-5" />
                     </button>
                 </div>
 
-                <div className="space-y-2 text-sm">
-                    <p className="text-yellow-800 font-semibold">
-                        注意: SNSアカウントは承諾済みの場合のみ表示されます。
+                <div className="mb-4 rounded-xl border border-yellow-100 bg-yellow-50 p-3">
+                    <p className="text-sm font-medium leading-6 text-yellow-800">
+                        注意：SNSアカウントはマッチング成立後のみ表示されます。
                     </p>
+                </div>
 
+                <div className="space-y-3">
                     {hasTwitter && (
-                        <p>
-                            Twitter:{' '}
+                        <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3">
+                            <span className="text-sm font-semibold text-slate-600">
+                                X
+                            </span>
+
                             <a
-                                href={`https://twitter.com/${sns.twitter}`}
+                                href={`https://x.com/${sns.twitter}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-blue-600 underline"
+                                className="break-all text-sm font-medium text-blue-600 hover:underline"
                             >
                                 @{sns.twitter}
                             </a>
-                        </p>
+                        </div>
                     )}
 
                     {hasInstagram && (
-                        <p>
-                            Instagram:{' '}
+                        <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3">
+                            <span className="text-sm font-semibold text-slate-600">
+                                Instagram
+                            </span>
+
                             <a
                                 href={`https://instagram.com/${sns.instagram}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-pink-600 underline"
+                                className="break-all text-sm font-medium text-pink-600 hover:underline"
                             >
                                 @{sns.instagram}
                             </a>
-                        </p>
+                        </div>
                     )}
                 </div>
-            </div>
-        </div>
-    );
-}
-
-/* ---------- DM Modal ---------- */
-function DMNotifyModal({ matchId, onClose }: { matchId: number; onClose: () => void }) {
-    const [message, setMessage] = useState('DM送信しました。よろしくお願いします。');
-    const [sending, setSending] = useState(false);
-
-    async function handleSend() {
-        setSending(true);
-
-        try {
-            const res = await fetch(
-                `/api/matchings/${matchId}/notifySnsMessage`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message }),
-                }
-            );
-
-            const data = await res.json();
-
-            if (!res.ok) {
-                let errorMessage = '送信に失敗しました';
-
-                switch (data.error) {
-                    case 'MESSAGE_REQUIRED':
-                        errorMessage = 'メッセージを入力してください';
-                        break;
-                    case 'MESSAGE_TOO_LONG':
-                        errorMessage = 'メッセージは200文字以内で入力してください';
-                        break;
-                    case 'FORBIDDEN':
-                        errorMessage = 'このマッチングに対して権限がありません';
-                        break;
-                    case 'MATCH_NOT_FOUND':
-                        errorMessage = 'マッチングが見つかりません';
-                        break;
-                    case 'USER_NOT_FOUND':
-                        errorMessage = 'ユーザー情報が見つかりません';
-                        break;
-                    case 'ALREADY_NOTIFIED':
-                        errorMessage = 'すでにDM通知は送信済みです';
-                        break;
-                    case 'INVALID_MATCH_ID':
-                        errorMessage = '不正なマッチIDです';
-                        break;
-                    case 'INTERNAL_SERVER_ERROR':
-                        errorMessage = 'サーバーエラーが発生しました';
-                        break;
-                }
-
-                throw new Error(errorMessage);
-            }
-
-            alert('送信しました');
-            onClose();
-        } catch (e) {
-            alert((e as Error).message);
-        } finally {
-            setSending(false);
-        }
-    }
-
-    return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white p-4 rounded-lg max-w-md w-full">
-                <div className="flex justify-end mb-2">
-                    <button
-                        onClick={onClose}
-                        className="text-gray-500 hover:text-gray-700"
-                    >
-                        ✕
-                    </button>
-                </div>
-
-                <textarea
-                    className="w-full border p-2 mb-3"
-                    rows={4}
-                    value={message}
-                    onChange={e => setMessage(e.target.value)}
-                />
-
-                <button
-                    onClick={handleSend}
-                    disabled={sending}
-                    className="bg-yellow-500 text-white px-4 py-2 rounded"
-                >
-                    {sending ? '送信中...' : '送信'}
-                </button>
             </div>
         </div>
     );

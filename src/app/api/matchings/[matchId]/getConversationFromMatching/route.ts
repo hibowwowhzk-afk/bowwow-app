@@ -1,12 +1,11 @@
-// src/app/api/matchings/[matchId]/getConversationFromMatching/route.ts
 
 import { NextResponse } from 'next/server';
 import { verifySessionFromRequest } from '@/lib/firebase-session';
 import { UserRepository } from '@/repositories/UserRepository';
 import { MatchesRepository } from '@/repositories/MatchesRepository';
-import { SnsNotificationsRepository } from '@/repositories/SnsNotificationsRepository';
 import { RequestRepository } from '@/repositories/RequestRepository';
 import { PostRepository } from '@/repositories/PostRepository';
+import { MatchMessagesRepository } from '@/repositories/MatchMessagesRepository';
 
 export async function GET(req: Request) {
     try {
@@ -23,7 +22,16 @@ export async function GET(req: Request) {
 
         const matchId = Number(matchIdStr);
 
+        if (!Number.isInteger(matchId) || matchId <= 0) {
+            return NextResponse.json(
+                { error: 'matchId が不正です' },
+                { status: 400 }
+            );
+        }
+
+        // ログインユーザー確認
         const authResult = await verifySessionFromRequest();
+
         if ('error' in authResult) {
             return NextResponse.json(
                 { error: authResult.error },
@@ -43,7 +51,7 @@ export async function GET(req: Request) {
             );
         }
 
-        // マッチングメッセージ取得
+        // マッチング情報取得
         const matchingMessageInfo =
             await MatchesRepository.getMatchDetail(matchId);
 
@@ -54,9 +62,7 @@ export async function GET(req: Request) {
             );
         }
 
-        // =========================
-        // 権限チェック（追加）
-        // =========================
+        // 権限チェック
         if (
             matchingMessageInfo.from_user_id !== user.user_id &&
             matchingMessageInfo.to_user_id !== user.user_id
@@ -66,10 +72,6 @@ export async function GET(req: Request) {
                 { status: 403 }
             );
         }
-
-        // DM送信メッセージ取得
-        const dmMessageInfo =
-            await SnsNotificationsRepository.getByMatchId(matchId);
 
         // リクエストメッセージ取得
         let requestMessageInfo = null;
@@ -91,6 +93,17 @@ export async function GET(req: Request) {
                 );
         }
 
+        // match_messages から通常メッセージを取得
+        const messages =
+            await MatchMessagesRepository.getByMatchId(matchId);
+            console.log('[GET Conversation] messages:', messages);
+            console.log('[GET Conversation] messages count:', messages.length);
+            console.log('[GET Conversation] response:', {
+                self_user_id: user.user_id,
+                match_id: matchId,
+                messages_count: messages.length,
+                messages,
+            });
         return NextResponse.json({
             self_user_id: user.user_id,
 
@@ -98,13 +111,15 @@ export async function GET(req: Request) {
             post_message: postInfo?.message ?? null,
             post_date: postInfo?.date ?? null,
             post_images:
-                postInfo?.post_images?.map(img => img.image_url) ??
-                [],
+                postInfo?.post_images?.map(
+                    img => img.image_url
+                ) ?? [],
             post_user_id: postInfo?.user_id ?? null,
             post_created_at: postInfo?.created_at ?? null,
 
             // ---- リクエスト ----
-            request_message: requestMessageInfo?.request_message ?? null,
+            request_message:
+                requestMessageInfo?.request_message ?? null,
             request_from_user_id:
                 requestMessageInfo?.from_user_id ?? null,
             request_created_at:
@@ -118,14 +133,13 @@ export async function GET(req: Request) {
             matched_at:
                 matchingMessageInfo.created_at ?? null,
 
-            // ---- DM ----
-            dm_message: dmMessageInfo?.message ?? null,
-            dm_from_user_id:
-                dmMessageInfo?.from_user_id ?? null,
-            dm_sent_at: dmMessageInfo?.sent_at ?? null,
+            // ---- 通常メッセージ ----
+            messages: messages ?? [],
         });
+
     } catch (err) {
         console.error(err);
+
         return NextResponse.json(
             { error: 'Server error' },
             { status: 500 }
